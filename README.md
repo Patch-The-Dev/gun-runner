@@ -8,13 +8,11 @@ The server creates each track and owns race progress, combat results, currency, 
 
 ## Start reviewing
 
-| Area | Code | What it shows |
-| --- | --- | --- |
-| Track generation | [TrackPlanner](src/shared/Domain/TrackPlanner.luau) and [TrackRenderer](src/server/Infrastructure/TrackRenderer.luau) | Seeded plans kept separate from Roblox instance creation |
-| Race rules | [RaceSession](src/server/Domain/RaceSession.luau) and [RaceService](src/server/Services/RaceService.luau) | Ordered checkpoints, one-time claims, and server-calculated rewards |
-| Combat | [WeaponService](src/server/Services/WeaponService.luau) | Request validation, fire-rate limits, and server raycasts |
-| Player data | [PlayerRepository](src/server/Persistence/PlayerRepository.luau) and [Migrations](src/server/Persistence/Migrations.luau) | ProfileStore sessions, schema upgrades, and receipt save confirmation |
-| Client | [RunnerController](src/client/Controllers/RunnerController.luau) and [UIController](src/client/Controllers/UIController.luau) | Movement presentation and UI bindings |
+- **Track generation:** [TrackPlanner](src/shared/Domain/TrackPlanner.luau) produces seeded plans. [TrackRenderer](src/server/Infrastructure/TrackRenderer.luau) builds the server-owned instances.
+- **Race rules:** [RaceSession](src/server/Domain/RaceSession.luau) tracks ordered checkpoints and one-time claims. [RaceService](src/server/Services/RaceService.luau) calculates rewards.
+- **Combat:** [WeaponService](src/server/Services/WeaponService.luau) validates fire requests, limits cadence, and raycasts on the server.
+- **Player data:** [PlayerRepository](src/server/Persistence/PlayerRepository.luau) manages ProfileStore sessions and receipt saves. [Migrations](src/server/Persistence/Migrations.luau) upgrades saved data.
+- **Client:** [RunnerController](src/client/Controllers/RunnerController.luau) handles movement and camera presentation. [UIController](src/client/Controllers/UIController.luau) binds UI to state and actions.
 
 The [architecture](docs/architecture.md), [security notes](docs/security.md), and [world contract](docs/world-contract.md) explain the boundaries between these systems. The [tests](tests) cover the domain rules and migrations.
 
