@@ -1,0 +1,22 @@
+--!strict
+
+return table.freeze({
+	SegmentSpacing = 28,
+	LaneOffset = 7,
+	TrackHalfWidth = 8,
+	RunnerSpeed = 25,
+	RunnerFastPadSpeed = 35,
+	RunnerSlowPadSpeed = 15,
+	MinimumFinishTimeScale = 0.72,
+	CheckpointThickness = 1.5,
+	GateStats = table.freeze({ "Damage", "Range", "FireRate" }),
+	MinimumGateDelta = 0.5,
+	MaximumGateDelta = 12,
+	GateShotStepScale = 0.08,
+	ObstaclePenaltyFraction = 0.2,
+	TargetReward = 1,
+	PillarBaseCash = 10,
+	ChestBonusMultiplier = 5,
+	EvolverTargetRatio = 0.6,
+	EvolverMultipliers = table.freeze({ 1.75, 2.25, 3 }),
+})

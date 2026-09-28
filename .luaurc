@@ -1,0 +1,13 @@
+{
+  "languageMode": "strict",
+  "lint": {
+    "DuplicateLocal": true,
+    "GlobalUsedAsLocal": true,
+    "LocalShadow": true,
+    "SameLineStatement": true,
+    "UninitializedLocal": true,
+    "UnusedFunction": true,
+    "UnusedLocal": true,
+    "UnusedVariable": true
+  }
+}

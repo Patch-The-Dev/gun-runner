@@ -1,0 +1,37 @@
+--!strict
+
+return function()
+	local ServerScriptService = game:GetService("ServerScriptService")
+	local RaceSession = require(ServerScriptService.Server.Domain.RaceSession)
+
+	describe("RaceSession", function()
+		it("requires ordered checkpoints", function()
+			local race = RaceSession.new({ Damage = 1, Range = 20, FireRate = 2 }, Vector3.zAxis, 3)
+			expect(race:touchCheckpoint(2)).to.equal(false)
+			expect(race:touchCheckpoint(1)).to.equal(true)
+			expect(race:touchCheckpoint(1)).to.equal(false)
+			expect(race:touchCheckpoint(2)).to.equal(true)
+			expect(race:touchCheckpoint(3)).to.equal(true)
+			expect(race.LastCheckpointIndex).to.equal(3)
+		end)
+
+		it("does not consume the same target twice", function()
+			local race = RaceSession.new({ Damage = 1, Range = 20, FireRate = 2 }, Vector3.zAxis, 1)
+			expect(race:consumeTarget("target-1", 10)).to.equal(true)
+			expect(race:consumeTarget("target-1", 10)).to.equal(false)
+			expect(race.RunTargets).to.equal(10)
+		end)
+
+		it("does not claim invalid rewards or mutate a finished run", function()
+			local race = RaceSession.new({ Damage = 1, Range = 20, FireRate = 2 }, Vector3.zAxis, 1)
+			expect(race:consumePillar("pillar-1", 0)).to.equal(false)
+			expect(race:consumePillar("pillar-1", 25)).to.equal(true)
+			expect(race:consumeTarget("target-1", 10)).to.equal(true)
+			race:finish(1, 1)
+			expect(race:consumePillar("pillar-2", 25)).to.equal(false)
+			expect(race:consumeTarget("target-2", 10)).to.equal(false)
+			expect(race.RunCash).to.equal(25)
+			expect(race.RunTargets).to.equal(10)
+		end)
+	end)
+end
