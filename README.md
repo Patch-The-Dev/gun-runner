@@ -4,11 +4,13 @@
 
 [![CI](https://github.com/Patch-The-Dev/gun-runner/actions/workflows/ci.yml/badge.svg)](https://github.com/Patch-The-Dev/gun-runner/actions/workflows/ci.yml)
 
-Gun Runner is a Luau code portfolio by [PatchTheDev](https://www.patchthedev.com). It presents the gameplay source as a Rojo project, with the rules, server services, client controllers, tests, and Studio integration contract available for review.
+**[Play Gun Runner on Roblox](https://www.roblox.com/games/18336486336/Gun-Runner) · [Project page and gallery](https://www.patchthedev.com/work/gun-runner)**
+
+Gun Runner is a playable Roblox game by [PatchTheDev](https://www.patchthedev.com). This repository presents its gameplay code as a Rojo project, with the rules, server services, client controllers, tests, and Studio integration contract available for review.
 
 A run starts at a player base, builds a track from the player's upgrades, and ends with server calculated rewards. Between runs, players can buy weapons and upgrades, claim timed rewards, and rebirth. The source also covers saved profiles, game passes, and developer products.
 
-**Start here:** [Gameplay](#the-gameplay-loop) · [Systems](#systems-worth-reviewing) · [Architecture](#architecture-at-a-glance) · [Code review](#a-route-through-the-code) · [Setup](#working-with-the-project) · [Scope](#repository-scope)
+**Start here:** [Gameplay](#the-gameplay-loop) · [Systems](#systems-worth-reviewing) · [Architecture](#architecture-at-a-glance) · [Code review](#a-route-through-the-code) · [Setup](#working-with-the-project)
 
 ## The gameplay loop
 
@@ -22,7 +24,7 @@ A run starts at a player base, builds a track from the player's upgrades, and en
 
 ### Track generation and world objects
 
-[TrackPlanner](src/shared/Domain/TrackPlanner.luau) turns a seed and upgrade settings into a track plan without creating Roblox instances. That separation makes generation rules testable without a place file. [TrackRenderer](src/server/Infrastructure/TrackRenderer.luau) takes the plan and creates the world geometry, including the checkpoints used to validate completion.
+[TrackPlanner](src/shared/Domain/TrackPlanner.luau) turns a seed and upgrade settings into a track plan without creating Roblox instances. That separation makes generation rules testable in isolation. [TrackRenderer](src/server/Infrastructure/TrackRenderer.luau) takes the plan and creates the world geometry, including the checkpoints used to validate completion.
 
 The upgrade configuration changes track length, finish length, booster strength, and spawn chances for pads, targets, and obstacles. Generated objects carry an `OwnerUserId` attribute and CollectionService tags, so interactions can be routed to the correct player's race. The renderer also sets up stat gates, finish pillars, and an evolver reward when its run requirements are met.
 
@@ -81,17 +83,22 @@ wally install
 rojo serve default.project.json
 ```
 
-Build the source place and the separate TestEZ place:
+Build the game source:
 
 ```sh
 rojo build default.project.json --output GunRunner.rbxlx
+```
+
+The [GitHub Actions workflow](.github/workflows/ci.yml) installs packages, checks formatting and linting, and builds the game source and test project on pushes and pull requests.
+
+### Tests
+
+The [TestEZ specs](tests) exercise the game rules separately from the normal game bootstrap. `test.project.json` maps the shared and server domain modules, the specs, and the TestEZ dev package into a small Studio test project. `testez.yml` supplies Selene with TestEZ's test globals. Neither TestEZ nor the test runner is mapped into the normal game project.
+
+```sh
 rojo build test.project.json --output GunRunnerTests.rbxlx
 ```
 
-The [GitHub Actions workflow](.github/workflows/ci.yml) installs packages, checks formatting and linting, and builds both places on pushes and pull requests. To execute the TestEZ specs, open `GunRunnerTests.rbxlx` in Studio, start a play test, and check Output. Studio test execution is not part of CI.
+Open `GunRunnerTests.rbxlx` in Studio, start a play test, and check Output for the TestEZ result. CI verifies that the test project builds; it does not execute the specs in Studio.
 
-## Repository scope
-
-This repository contains the gameplay source, project configuration, tests, and documentation. It does not contain the original Studio map, interface assets, animations, or a playable place. A Rojo build proves that the source assembles; it does not recreate the full game on its own. The [world contract](docs/world-contract.md) lists the bases, tags, attributes, and UI elements needed to connect the code to a place. Product and game pass IDs in [ProductConfig](src/shared/Config/ProductConfig.luau) belong to the original experience.
-
-For more detail, read the [architecture](docs/architecture.md), [security notes](docs/security.md), [world contract](docs/world-contract.md), and [refactor scope](docs/refactor-scope.md). See [PatchTheDev's portfolio](https://www.patchthedev.com) for the broader body of work.
+The [architecture](docs/architecture.md), [security notes](docs/security.md), [world contract](docs/world-contract.md), and [refactor scope](docs/refactor-scope.md) cover the design in more detail. [ProductConfig](src/shared/Config/ProductConfig.luau) contains product and game pass IDs for the live experience.
