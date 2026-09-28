@@ -18,6 +18,7 @@ local TAGS = table.freeze({
 	Evolver = "RaceEvolver",
 	Finish = "RaceFinish",
 	Checkpoint = "RaceCheckpoint",
+	SpeedPad = "RaceSpeedPad",
 })
 
 local function createPart(parent: Instance, name: string, size: Vector3, cframe: CFrame): Part
@@ -51,6 +52,14 @@ function TrackRenderer.render(base: Instance, userId: number, plan: TrackPlan): 
 		)
 		return nil
 	end
+	local look = origin.CFrame.LookVector
+	local horizontal = Vector3.new(look.X, 0, look.Z)
+	if horizontal.Magnitude <= 0.001 then
+		warn(string.format("PlayerBase %s has a vertical track origin", base:GetFullName()))
+		return nil
+	end
+	local direction = horizontal.Unit
+	local right = Vector3.new(-direction.Z, 0, direction.X)
 
 	local existing = base:FindFirstChild("GeneratedTrack")
 	if existing ~= nil then
@@ -64,8 +73,6 @@ function TrackRenderer.render(base: Instance, userId: number, plan: TrackPlan): 
 	model:SetAttribute("CheckpointCount", #plan.Segments)
 	model.Parent = base
 
-	local direction = origin.CFrame.LookVector
-	local right = origin.CFrame.RightVector
 	local start = origin.Position + direction * (TrackConfig.SegmentSpacing * 0.75)
 
 	for _, segment in plan.Segments do
@@ -115,7 +122,7 @@ function TrackRenderer.render(base: Instance, userId: number, plan: TrackPlan): 
 			CollectionService:AddTag(part, TAGS.Gate)
 
 			if gate.HasPad then
-				local padCenter = center + laneOffset - direction * 4 + Vector3.new(0, 0.25, 0)
+				local padCenter = center + laneOffset - direction * 4 + Vector3.new(0, 0.6, 0)
 				local pad = createPart(
 					model,
 					"SpeedPad",
@@ -123,7 +130,9 @@ function TrackRenderer.render(base: Instance, userId: number, plan: TrackPlan): 
 					CFrame.lookAt(padCenter, padCenter + direction)
 				)
 				pad.Material = if gate.PadNegative then Enum.Material.Glass else Enum.Material.Metal
+				pad:SetAttribute("PadNegative", gate.PadNegative)
 				setOwnership(pad, userId)
+				CollectionService:AddTag(pad, TAGS.SpeedPad)
 			end
 		end
 

@@ -1,22 +1,26 @@
 # Gun Runner
 
-Gun Runner is a Roblox progression game built around generated runner tracks, shooting targets, upgrading weapons, earning currency, and rebirthing. This repository contains a Rojo-based refactor of its Luau gameplay code.
+[![CI](https://github.com/Patch-The-Dev/gun-runner/actions/workflows/ci.yml/badge.svg)](https://github.com/Patch-The-Dev/gun-runner/actions/workflows/ci.yml)
 
-The original Studio map, UI assets, animations, and place file are not included. This source is intended for code review and further development, not as a playable game out of the box. See [the world contract](docs/world-contract.md) for the tags, attributes, and objects required to connect it to a place.
+Gun Runner is a Roblox runner game with generated tracks, shooting targets, weapon upgrades, and persistent progression. This repository presents its Luau source as a Rojo project for code review.
 
-## Project layout
+The server creates each track and owns race progress, combat results, currency, and saved data. Client code handles input, camera, UI, and shot presentation.
 
-- `src/server`: gameplay services, race state, persistence, and world adapters
-- `src/client`: input, UI, and presentation controllers
-- `src/shared`: configuration, types, validation, and gameplay calculations
-- `tests`: TestEZ specs for progression, track planning, weapon math, race state, and data migration
-- `docs`: architecture, security decisions, and Studio integration requirements
+## Start reviewing
 
-The server owns rewards, purchases, weapon hits, race state, and saved player data. Client requests are validated at the service boundary. [Architecture](docs/architecture.md), [security notes](docs/security.md), and [refactor scope](docs/refactor-scope.md) describe the design in more detail.
+| Area | Code | What it shows |
+| --- | --- | --- |
+| Track generation | [TrackPlanner](src/shared/Domain/TrackPlanner.luau) and [TrackRenderer](src/server/Infrastructure/TrackRenderer.luau) | Seeded plans kept separate from Roblox instance creation |
+| Race rules | [RaceSession](src/server/Domain/RaceSession.luau) and [RaceService](src/server/Services/RaceService.luau) | Ordered checkpoints, one-time claims, and server-calculated rewards |
+| Combat | [WeaponService](src/server/Services/WeaponService.luau) | Request validation, fire-rate limits, and server raycasts |
+| Player data | [PlayerRepository](src/server/Persistence/PlayerRepository.luau) and [Migrations](src/server/Persistence/Migrations.luau) | ProfileStore sessions, schema upgrades, and receipt save confirmation |
+| Client | [RunnerController](src/client/Controllers/RunnerController.luau) and [UIController](src/client/Controllers/UIController.luau) | Movement presentation and UI bindings |
 
-## Toolchain
+The [architecture](docs/architecture.md), [security notes](docs/security.md), and [world contract](docs/world-contract.md) explain the boundaries between these systems. The [tests](tests) cover the domain rules and migrations.
 
-Rojo maps the source tree into Roblox Studio. Rokit pins Rojo, Wally, StyLua, and Selene. Wally manages Knit, ProfileStore, and the other Luau dependencies. Git tracks the source and configuration.
+## Work with the source
+
+Rokit pins the tools, Wally installs the Luau packages, and Rojo connects the source tree to Studio.
 
 ```sh
 rokit install
@@ -24,17 +28,19 @@ wally install
 rojo serve default.project.json
 ```
 
-Use the Rojo Studio plugin to connect to the running server. The Studio place must provide the assets and tags described in [docs/world-contract.md](docs/world-contract.md).
-
-## Checks
+Use the Rojo Studio plugin to connect to the running server. To build the game and test places without opening Studio:
 
 ```sh
-stylua --check src tests
-selene src tests
 rojo build default.project.json -o GunRunner.rbxlx
 rojo build test.project.json -o GunRunnerTests.rbxlx
 ```
 
-The test place contains a TestEZ runner for the specs under `tests/`. GitHub Actions checks formatting, linting, dependency installation, and both Rojo builds. It does not run the Studio tests.
+## Verification
 
-For a quick code review, start with [TrackPlanner](src/shared/Domain/TrackPlanner.luau), [RaceSession](src/server/Domain/RaceSession.luau), [WeaponService](src/server/Services/WeaponService.luau), and [PlayerRepository](src/server/Persistence/PlayerRepository.luau).
+GitHub Actions installs dependencies, checks formatting with StyLua, lints with Selene, and builds both Rojo projects. To run the TestEZ specs, open `GunRunnerTests.rbxlx` in Studio, start a play test, and check the Output window. Studio tests are not part of CI.
+
+## Repository scope
+
+The original Studio map, UI assets, animations, and playable place are not included. The Rojo build demonstrates the code structure but needs the Studio objects listed in the [world contract](docs/world-contract.md) to run as a game. Product and game-pass IDs in [ProductConfig](src/shared/Config/ProductConfig.luau) are specific to the original experience.
+
+More about my work: [PatchTheDev](https://www.patchthedev.com).

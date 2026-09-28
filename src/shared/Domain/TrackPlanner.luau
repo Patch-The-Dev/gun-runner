@@ -23,7 +23,7 @@ export type TrackSettings = {
 local TrackPlanner = {}
 
 local function chance(random: Random, probability: number): boolean
-	return random:NextNumber() <= math.clamp(probability, 0, 1)
+	return random:NextNumber() < math.clamp(probability, 0, 1)
 end
 
 local function buildGate(

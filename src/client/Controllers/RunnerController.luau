@@ -1,5 +1,6 @@
 --!strict
 
+local CollectionService = game:GetService("CollectionService")
 local ContextActionService = game:GetService("ContextActionService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -28,6 +29,10 @@ function RunnerController:KnitInit()
 	self._leftHeld = false
 	self._rightHeld = false
 	self._bound = false
+	self._wasRunning = false
+	self._floorRaycastParams = RaycastParams.new()
+	self._floorRaycastParams.FilterType = Enum.RaycastFilterType.Exclude
+	self._floorRaycastParams.RespectCanCollide = true
 end
 
 function RunnerController:KnitStart()
@@ -37,6 +42,7 @@ function RunnerController:KnitStart()
 	self._trove:Add(Store.Changed:Connect(function(state)
 		self:_setInputBound(state.Race.State == "Running")
 	end))
+	self:_setInputBound(Store:getState().Race.State == "Running")
 end
 
 function RunnerController:_setInputBound(shouldBind: boolean)
@@ -74,6 +80,33 @@ function RunnerController:_restoreCharacter(humanoid: Humanoid?)
 	end
 end
 
+function RunnerController:_getRunSpeed(
+	character: Model,
+	humanoid: Humanoid?,
+	root: BasePart
+): number
+	if humanoid == nil or humanoid.FloorMaterial == Enum.Material.Air then
+		return TrackConfig.RunnerSpeed
+	end
+
+	local raycastParams = self._floorRaycastParams
+	raycastParams.FilterDescendantsInstances = { character }
+	local rayLength = humanoid.HipHeight + root.Size.Y / 2 + 2
+	local result = Workspace:Raycast(root.Position, Vector3.new(0, -rayLength, 0), raycastParams)
+	local floor = if result ~= nil then result.Instance else nil
+	if
+		floor == nil
+		or not CollectionService:HasTag(floor, "RaceSpeedPad")
+		or floor:GetAttribute("OwnerUserId") ~= LOCAL_PLAYER.UserId
+	then
+		return TrackConfig.RunnerSpeed
+	end
+
+	return if floor:GetAttribute("PadNegative") == true
+		then TrackConfig.RunnerSlowPadSpeed
+		else TrackConfig.RunnerFastPadSpeed
+end
+
 function RunnerController:_step()
 	local state = Store:getState()
 	local direction = state.Race.Direction
@@ -84,10 +117,14 @@ function RunnerController:_step()
 	if
 		state.Race.State ~= "Running"
 		or direction == nil
+		or character == nil
 		or root == nil
 		or not root:IsA("BasePart")
 	then
-		self:_restoreCharacter(humanoid)
+		if self._wasRunning then
+			self:_restoreCharacter(humanoid)
+			self._wasRunning = false
+		end
 		return
 	end
 
@@ -95,6 +132,7 @@ function RunnerController:_step()
 	if forward == nil then
 		return
 	end
+	self._wasRunning = true
 	local right = Vector3.new(-forward.Z, 0, forward.X)
 	local lateral = (if self._rightHeld then 1 else 0) - (if self._leftHeld then 1 else 0)
 	local moveDirection = (forward + right * lateral)
@@ -102,16 +140,11 @@ function RunnerController:_step()
 		moveDirection = moveDirection.Unit
 	end
 
-	local speed = TrackConfig.RunnerSpeed
 	if humanoid ~= nil then
 		humanoid.AutoRotate = false
-		if humanoid.FloorMaterial == Enum.Material.Metal then
-			speed = TrackConfig.RunnerFastPadSpeed
-		elseif humanoid.FloorMaterial == Enum.Material.Glass then
-			speed = TrackConfig.RunnerSlowPadSpeed
-		end
 	end
 
+	local speed = self:_getRunSpeed(character, humanoid, root)
 	root.AssemblyLinearVelocity =
 		Vector3.new(moveDirection.X * speed, root.AssemblyLinearVelocity.Y, moveDirection.Z * speed)
 	root.CFrame = CFrame.lookAt(root.Position, root.Position + forward)

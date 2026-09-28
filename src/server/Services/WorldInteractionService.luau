@@ -39,8 +39,10 @@ function WorldInteractionService:KnitStart()
 		self._touches[player] = nil
 	end)
 
-	self:_bind("RaceStart", function(player, _instance)
-		self._race:StartRace(player)
+	self:_bind("RaceStart", function(player, instance)
+		if self._base:OwnsInstance(player, instance) then
+			self._race:StartRace(player)
+		end
 	end)
 	self:_bind("RaceCheckpoint", function(player, instance)
 		self._race:HandleCheckpointTouched(player, instance)

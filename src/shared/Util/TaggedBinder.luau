@@ -8,6 +8,9 @@ local Trove = require(ReplicatedStorage.Packages.Trove)
 type Cleanup = () -> ()
 type Factory = (instance: Instance) -> Cleanup?
 
+local TaggedBinder = {}
+TaggedBinder.__index = TaggedBinder
+
 export type TaggedBinder = typeof(setmetatable(
 	{} :: {
 		_tag: string,
@@ -15,11 +18,8 @@ export type TaggedBinder = typeof(setmetatable(
 		_trove: typeof(Trove.new()),
 		_cleanups: { [Instance]: Cleanup },
 	},
-	{} :: typeof(TaggedBinder)
+	TaggedBinder
 ))
-
-local TaggedBinder = {}
-TaggedBinder.__index = TaggedBinder
 
 function TaggedBinder.new(tag: string, factory: Factory): TaggedBinder
 	local self = setmetatable({
