@@ -48,11 +48,10 @@ On the client, [ClientStore](src/client/State/ClientStore.luau) holds local snap
 
 ```mermaid
 flowchart TD
-    Client["Client controllers<br/>Input, camera, UI"] -->|"Knit requests"| Services["Server services<br/>Validation and orchestration"]
-    Services --> Domain["Domain<br/>Race and progression rules"]
-    Services --> World["World<br/>Generated tracks and tagged objects"]
-    Services --> Data["Persistence<br/>ProfileStore and migrations"]
-    Domain --> Shared["Shared config, types, and pure calculations"]
+    Client["Client controllers"] -->|"Knit requests"| Services["Server services"]
+    Services --> Domain["Domain rules"]
+    Services --> World["Track renderer"]
+    Services --> Data["ProfileStore"]
 ```
 
 Knit provides the service and controller lifecycle. Services coordinate requests and state; domain modules hold rules that can be tested separately. The client reports intent, while the server calculates prices, damage, ownership, and rewards. [Architecture](docs/architecture.md) and [security notes](docs/security.md) explain those boundaries in more detail.
