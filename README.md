@@ -99,6 +99,15 @@ The [TestEZ specs](tests) exercise the game rules separately from the normal gam
 rojo build test.project.json --output GunRunnerTests.rbxlx
 ```
 
-Open `GunRunnerTests.rbxlx` in Studio, start a play test, and check Output for the TestEZ result. CI verifies that the test project builds; it does not execute the specs in Studio.
+Open `GunRunnerTests.rbxlx` in Studio, start a play test, and check Output for the TestEZ result. On Windows, Studio's command-line `RunScript` task can execute the same specs directly against the built test place:
+
+```powershell
+$studio = (Get-ChildItem "$env:LOCALAPPDATA\Roblox\Versions\*\RobloxStudioBeta.exe" | Sort-Object LastWriteTime -Descending | Select-Object -First 1).FullName
+$place = (Resolve-Path .\GunRunnerTests.rbxlx).Path
+$runner = (Resolve-Path .\tests\RunInStudio.luau).Path
+& $studio --task RunScript --localPlaceFile $place --runScriptFile $runner --outputFile (Join-Path $env:TEMP 'GunRunnerTests.log') --quitAfterExecution
+```
+
+A passing run prints `GUN_RUNNER_TESTS_PASS` and the TestEZ summary. CI verifies that the test project builds; it does not launch Studio.
 
 The [architecture](docs/architecture.md), [security notes](docs/security.md), [world contract](docs/world-contract.md), and [source layout](docs/source-layout.md) cover the design in more detail. [ProductConfig](src/shared/Config/ProductConfig.luau) contains product and game pass IDs for the live experience.
