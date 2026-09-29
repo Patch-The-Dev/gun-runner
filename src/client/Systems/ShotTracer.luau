@@ -1,12 +1,33 @@
 --!strict
 
-local Debris = game:GetService("Debris")
 local Workspace = game:GetService("Workspace")
 
 local MIN_VISUAL_LENGTH = 2
 local MAX_VISUAL_LENGTH = 28
+local MAX_TRACERS = 96
+local TRACER_LIFETIME = 0.08
 
 local ShotTracer = {}
+local pool: { Part } = {}
+local generations: { number } = {}
+local nextSlot = 1
+
+local function acquireTracer(): (Part, number)
+	local slot = nextSlot
+	nextSlot = (slot % MAX_TRACERS) + 1
+	local tracer = pool[slot]
+	if tracer == nil then
+		tracer = Instance.new("Part")
+		tracer.Name = "ShotTracer"
+		tracer.Anchored = true
+		tracer.CanCollide = false
+		tracer.CanQuery = false
+		tracer.CanTouch = false
+		tracer.Material = Enum.Material.Neon
+		pool[slot] = tracer
+	end
+	return tracer, slot
+end
 
 local function spreadDirections(direction: Vector3, projectileCount: number): { Vector3 }
 	local unit = direction.Unit
@@ -37,17 +58,17 @@ function ShotTracer.render(origin: Vector3, direction: Vector3, explosive: boole
 	)
 	local thickness = if explosive then 0.35 else 0.12
 
-	local tracer = Instance.new("Part")
-	tracer.Name = "ShotTracer"
-	tracer.Anchored = true
-	tracer.CanCollide = false
-	tracer.CanQuery = false
-	tracer.CanTouch = false
-	tracer.Material = Enum.Material.Neon
+	local tracer, slot = acquireTracer()
 	tracer.Size = Vector3.new(thickness, thickness, length)
 	tracer.CFrame = CFrame.lookAt(origin, origin + direction.Unit) * CFrame.new(0, 0, -length / 2)
 	tracer.Parent = Workspace
-	Debris:AddItem(tracer, 0.08)
+	local generation = (generations[slot] or 0) + 1
+	generations[slot] = generation
+	task.delay(TRACER_LIFETIME, function()
+		if generations[slot] == generation then
+			tracer.Parent = nil
+		end
+	end)
 end
 
 function ShotTracer.renderSpread(

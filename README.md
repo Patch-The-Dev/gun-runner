@@ -26,13 +26,15 @@ A run starts at a player base, builds a track from the player's upgrades, and en
 
 [TrackPlanner](src/shared/Domain/TrackPlanner.luau) turns a seed and upgrade settings into a track plan without creating Roblox instances. That separation makes generation rules testable in isolation. [TrackRenderer](src/server/Infrastructure/TrackRenderer.luau) takes the plan and creates the world geometry, including the checkpoints used to validate completion.
 
-The upgrade configuration changes track length, finish length, booster strength, and spawn chances for pads, targets, and obstacles. Generated objects carry an `OwnerUserId` attribute and CollectionService tags, so interactions can be routed to the correct player's race. The renderer also sets up stat gates, finish pillars, and an evolver reward when its run requirements are met.
+The upgrade configuration changes track length, finish length, booster strength, and spawn chances for pads, targets, and obstacles. Generated objects carry an `OwnerUserId` attribute and CollectionService tags, so interactions can be routed to the correct player's race. Gates, targets, obstacles, and the evolver also carry a segment index for validation. The renderer sets up stat gates, finish pillars, and an evolver reward when its run requirements are met.
 
 ### Combat and race authority
 
 The client supplies an aiming direction, not a hit or damage value. [WeaponService](src/server/Services/WeaponService.luau) checks the payload, keeps aim within a narrow cone around the run direction, limits firing cadence, chooses the firing origin from the player's character, and performs the raycast. Weapon damage, range, and fire rate come from [WeaponConfig](src/shared/Config/WeaponConfig.luau). The shared [network contract](src/shared/Network/Contract.luau) validates structured requests at the server boundary.
 
-[RaceService](src/server/Services/RaceService.luau) owns active runs and rewards. Its [RaceSession](src/server/Domain/RaceSession.luau) tracks checkpoint order and one time claims for targets, gates, obstacles, and pillars. A checkpoint requires the character to be nearby and enough time to have passed since the previous one. The server samples position during the run and cancels implausible jumps. Finish validation also enforces a track-based minimum time. These are server-side plausibility checks for client-controlled character movement; they do not prove every movement was legitimate.
+[RaceService](src/server/Services/RaceService.luau) owns active runs and rewards. Its [RaceSession](src/server/Domain/RaceSession.luau) tracks checkpoint order and one time claims for targets, gates, obstacles, and pillars. Checkpoints and touch objects require the character to be nearby, in the current segment, and far enough into the run to reach them. The server samples position during the run and again when the character fires or touches an object, cancelling runs with implausible jumps. Finish validation also enforces a track-based minimum time. These are server-side plausibility checks for client-controlled character movement; they do not prove every movement was legitimate.
+
+[RequestGateService](src/server/Services/RequestGateService.luau) applies per-player budgets to snapshot, purchase, and gift requests. Shot events reach only players near the shooter. The client [tracer renderer](src/client/Systems/ShotTracer.luau) reuses a fixed pool of parts to bound visual object churn.
 
 ### Progression, economy, and purchases
 
@@ -69,7 +71,7 @@ For a focused review, these files show the main design decisions:
 | [WeaponService](src/server/Services/WeaponService.luau) and [WeaponMath](src/shared/Domain/WeaponMath.luau) | Request validation, firing limits, server raycasts, and combat calculations. |
 | [Progression](src/shared/Domain/Progression.luau) and [ProgressionService](src/server/Services/ProgressionService.luau) | Cost formulas, purchase checks, upgrade values, and rebirth behavior. |
 | [PlayerRepository](src/server/Persistence/PlayerRepository.luau) and [Migrations](src/server/Persistence/Migrations.luau) | Session based persistence, schema changes, and Studio mock data. |
-| [TestEZ specs](tests) | Coverage for planning, progression, weapon math, race state, rate limiting, and migrations. |
+| [TestEZ specs](tests) | Coverage for planning, progression, weapon math, race state, request budgets, renderer geometry, and migrations. |
 
 ## Working with the project
 
@@ -110,4 +112,8 @@ $runner = (Resolve-Path .\tests\RunInStudio.luau).Path
 
 A passing run prints `GUN_RUNNER_TESTS_PASS` and the TestEZ summary. CI verifies that the test project builds; it does not launch Studio.
 
+The [server bootstrap smoke script](tests/RunServerBootstrapInStudio.luau) can be run with the same Studio command against the built game place to check that all server services initialize together. It prints `GUN_RUNNER_SERVER_BOOTSTRAP_PASS` when startup succeeds.
+
 The [architecture](docs/architecture.md), [security notes](docs/security.md), [world contract](docs/world-contract.md), and [source layout](docs/source-layout.md) cover the design in more detail. [ProductConfig](src/shared/Config/ProductConfig.luau) contains product and game pass IDs for the live experience.
+
+**Note:** This repository presents the Gun Runner code as a code portfolio. My day-to-day contribution history is tied to a different GitHub account for organizational clarity and client privacy. The source here is the result of that work, so this account's commit history does not represent the game's full development history.

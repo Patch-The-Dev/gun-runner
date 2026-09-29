@@ -45,14 +45,9 @@ return function()
 			expect(race:touchCheckpoint(1, Vector3.new(0, 0, 28), Vector3.new(0, 0, 28), 100.1)).to.equal(
 				false
 			)
+			expect(race.InvalidMovement).to.equal(true)
 			expect(race:touchCheckpoint(1, Vector3.new(0, 0, 28), Vector3.new(0, 0, 28), 101)).to.equal(
-				true
-			)
-			expect(race:touchCheckpoint(2, Vector3.new(0, 0, 56), Vector3.new(0, 0, 56), 101.1)).to.equal(
 				false
-			)
-			expect(race:touchCheckpoint(2, Vector3.new(0, 0, 56), Vector3.new(0, 0, 56), 102)).to.equal(
-				true
 			)
 		end)
 
@@ -89,9 +84,57 @@ return function()
 			expect(race:canFinish(0, Vector3.new(0, 0, 56), Vector3.new(0, 0, 56), 101.1)).to.equal(
 				false
 			)
+			expect(race.InvalidMovement).to.equal(true)
+		end)
+
+		it("accepts plausible progress to the finish", function()
+			local race = RaceSession.new(
+				{ Damage = 1, Range = 20, FireRate = 2 },
+				Vector3.zAxis,
+				1,
+				Vector3.zero,
+				100
+			)
+			expect(race:touchCheckpoint(1, Vector3.new(0, 0, 28), Vector3.new(0, 0, 28), 101)).to.equal(
+				true
+			)
 			expect(race:canFinish(0, Vector3.new(0, 0, 56), Vector3.new(0, 0, 56), 102)).to.equal(
 				true
 			)
+		end)
+
+		it("requires current-segment timing and proximity for touch objects", function()
+			local race = RaceSession.new(
+				{ Damage = 1, Range = 20, FireRate = 2 },
+				Vector3.zAxis,
+				2,
+				Vector3.zero,
+				100
+			)
+			local gatePosition = Vector3.new(7, 0, 21)
+			expect(race:canTouchTrackObject(2, gatePosition, gatePosition, 101)).to.equal(false)
+			expect(race:canTouchTrackObject(1, gatePosition, Vector3.zero, 101)).to.equal(false)
+			expect(race:canTouchTrackObject(1, gatePosition, gatePosition, 100.1)).to.equal(false)
+			expect(race.InvalidMovement).to.equal(true)
+		end)
+
+		it("accepts a current-segment touch after plausible travel", function()
+			local race = RaceSession.new(
+				{ Damage = 1, Range = 20, FireRate = 2 },
+				Vector3.zAxis,
+				2,
+				Vector3.zero,
+				100
+			)
+			local gatePosition = Vector3.new(7, 0, 21)
+			expect(
+				race:canTouchTrackObject(1, Vector3.new(7, 0, 21), Vector3.new(7, 0, 16), 100.46, 5)
+			).to.equal(true)
+			expect(race:canTouchTrackObject(1, gatePosition, gatePosition, 101)).to.equal(true)
+			expect(race:touchCheckpoint(1, Vector3.new(0, 0, 28), Vector3.new(0, 0, 28), 101.3)).to.equal(
+				true
+			)
+			expect(race:canTouchTrackObject(1, gatePosition, gatePosition, 102)).to.equal(false)
 		end)
 
 		it("does not consume the same target twice", function()

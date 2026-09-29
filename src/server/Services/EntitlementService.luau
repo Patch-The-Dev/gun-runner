@@ -19,6 +19,7 @@ local EntitlementService = Knit.CreateService({
 })
 
 function EntitlementService:KnitInit()
+	self._requests = Knit.GetService("RequestGateService")
 	self._data = Knit.GetService("DataService")
 	self._states = {} :: { [Player]: Entitlements }
 	self._ownerships = {} :: { [Player]: { [number]: boolean } }
@@ -142,7 +143,10 @@ function EntitlementService:Get(player: Player): Entitlements
 	return self._states[player] or EntitlementPolicy.build({})
 end
 
-function EntitlementService.Client:GetSnapshot(player: Player): Entitlements
+function EntitlementService.Client:GetSnapshot(player: Player): Entitlements?
+	if not self.Server._requests:Allow(player, "Read") then
+		return nil
+	end
 	return self.Server:Get(player)
 end
 

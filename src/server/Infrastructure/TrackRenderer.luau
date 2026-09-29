@@ -113,6 +113,7 @@ function TrackRenderer.render(base: Instance, userId: number, plan: TrackPlan): 
 			part.CanCollide = false
 			part.Transparency = 0.15
 			part:SetAttribute("GateId", gate.Id)
+			part:SetAttribute("SegmentIndex", segment.Index)
 			part:SetAttribute("Stat", gate.Stat)
 			part:SetAttribute("Delta", gate.Delta)
 			part:SetAttribute("ShotStep", gate.ShotStep)
@@ -146,18 +147,21 @@ function TrackRenderer.render(base: Instance, userId: number, plan: TrackPlan): 
 			target.Shape = Enum.PartType.Ball
 			target.CanCollide = false
 			target:SetAttribute("TargetId", string.format("target-%d", segment.Index))
+			target:SetAttribute("SegmentIndex", segment.Index)
 			setOwnership(target, userId)
 			CollectionService:AddTag(target, TAGS.Target)
 		end
 
 		if segment.HasObstacle then
+			local obstaclePosition = center + right * TrackConfig.LaneOffset
 			local obstacle = createPart(
 				model,
 				"Obstacle",
 				Vector3.new(3, 3, 10),
-				CFrame.lookAt(center + right * TrackConfig.LaneOffset, center + direction)
+				CFrame.lookAt(obstaclePosition, obstaclePosition + direction)
 			)
 			obstacle:SetAttribute("ObstacleId", string.format("obstacle-%d", segment.Index))
+			obstacle:SetAttribute("SegmentIndex", segment.Index)
 			setOwnership(obstacle, userId)
 			CollectionService:AddTag(obstacle, TAGS.Obstacle)
 		end
@@ -228,6 +232,7 @@ function TrackRenderer.render(base: Instance, userId: number, plan: TrackPlan): 
 				CFrame.new(evolverCenter + right * offset + Vector3.new(0, 0.6, 0))
 			)
 			pad:SetAttribute("Tier", tier)
+			pad:SetAttribute("SegmentIndex", #plan.Segments + 1)
 			pad:SetAttribute("Multiplier", multiplier)
 			pad:SetAttribute(
 				"RequiredTargets",

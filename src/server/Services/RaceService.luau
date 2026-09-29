@@ -37,6 +37,20 @@ local function ownsRaceInstance(player: Player, instance: Instance): boolean
 	return instance:GetAttribute("OwnerUserId") == player.UserId
 end
 
+local function getRoot(player: Player): BasePart?
+	local character = player.Character
+	local root = if character ~= nil then character:FindFirstChild("HumanoidRootPart") else nil
+	return if root ~= nil and root:IsA("BasePart") then root else nil
+end
+
+local function touchForwardHalfExtent(direction: Vector3, part: BasePart): number
+	return (
+		math.abs(direction:Dot(part.CFrame.RightVector)) * part.Size.X
+		+ math.abs(direction:Dot(part.CFrame.UpVector)) * part.Size.Y
+		+ math.abs(direction:Dot(part.CFrame.LookVector)) * part.Size.Z
+	) / 2
+end
+
 local function resolveDirection(base: Instance): Vector3?
 	local origin = base:FindFirstChild("TrackOrigin", true)
 		or base:FindFirstChild("BeginLine", true)
@@ -48,6 +62,7 @@ local function resolveDirection(base: Instance): Vector3?
 end
 
 function RaceService:KnitInit()
+	self._requests = Knit.GetService("RequestGateService")
 	self._data = Knit.GetService("DataService")
 	self._economy = Knit.GetService("EconomyService")
 	self._base = Knit.GetService("BaseService")
@@ -135,12 +150,29 @@ function RaceService:GetRace(player: Player)
 	return if session ~= nil then session.Race else nil
 end
 
+function RaceService:ValidateCharacterPosition(player: Player): boolean
+	local race = self:GetRace(player)
+	if race == nil then
+		return true
+	end
+	local root = getRoot(player)
+	if root ~= nil and race:observePosition(root.Position) then
+		return true
+	end
+	self:CancelRace(player)
+	self._base:TeleportToBase(player)
+	return false
+end
+
 function RaceService:GetSnapshot(player: Player): RaceSnapshot
 	local race = self:GetRace(player)
 	return if race ~= nil then race:snapshot() else table.clone(IDLE_SNAPSHOT)
 end
 
-function RaceService.Client:GetSnapshot(player: Player): RaceSnapshot
+function RaceService.Client:GetSnapshot(player: Player): RaceSnapshot?
+	if not self.Server._requests:Allow(player, "Read") then
+		return nil
+	end
 	return self.Server:GetSnapshot(player)
 end
 
@@ -171,9 +203,8 @@ function RaceService:HandleCheckpointTouched(player: Player, checkpoint: Instanc
 	if type(checkpointIndex) ~= "number" then
 		return false
 	end
-	local character = player.Character
-	local root = if character ~= nil then character:FindFirstChild("HumanoidRootPart") else nil
-	if root == nil or not root:IsA("BasePart") or not checkpoint:IsA("BasePart") then
+	local root = getRoot(player)
+	if root == nil or not checkpoint:IsA("BasePart") then
 		return false
 	end
 	return race:touchCheckpoint(checkpointIndex, checkpoint.Position, root.Position)
@@ -185,10 +216,30 @@ function RaceService:HandleGateTouched(player: Player, gate: Instance): boolean
 		return false
 	end
 	local gateId = gate:GetAttribute("GateId")
+	local segmentIndex = gate:GetAttribute("SegmentIndex")
 	local statName = gate:GetAttribute("Stat")
 	local delta = gate:GetAttribute("Delta")
 	local shotStep = gate:GetAttribute("ShotStep")
-	if type(gateId) ~= "string" or type(statName) ~= "string" or type(delta) ~= "number" then
+	if
+		type(gateId) ~= "string"
+		or type(segmentIndex) ~= "number"
+		or type(statName) ~= "string"
+		or type(delta) ~= "number"
+		or not gate:IsA("BasePart")
+	then
+		return false
+	end
+	local root = getRoot(player)
+	if
+		root == nil
+		or not race:canTouchTrackObject(
+			segmentIndex,
+			gate.Position,
+			root.Position,
+			nil,
+			touchForwardHalfExtent(race.Direction, gate)
+		)
+	then
 		return false
 	end
 
@@ -211,7 +262,25 @@ function RaceService:HandleObstacleTouched(player: Player, obstacle: Instance): 
 		return false
 	end
 	local obstacleId = obstacle:GetAttribute("ObstacleId")
-	if type(obstacleId) ~= "string" then
+	local segmentIndex = obstacle:GetAttribute("SegmentIndex")
+	if
+		type(obstacleId) ~= "string"
+		or type(segmentIndex) ~= "number"
+		or not obstacle:IsA("BasePart")
+	then
+		return false
+	end
+	local root = getRoot(player)
+	if
+		root == nil
+		or not race:canTouchTrackObject(
+			segmentIndex,
+			obstacle.Position,
+			root.Position,
+			nil,
+			touchForwardHalfExtent(race.Direction, obstacle)
+		)
+	then
 		return false
 	end
 	local applied = race:applyObstacle(obstacleId, TrackConfig.ObstaclePenaltyFraction)
@@ -229,7 +298,26 @@ function RaceService:HandleEvolverTouched(player: Player, evolver: Instance): bo
 	end
 	local requiredTargets = evolver:GetAttribute("RequiredTargets")
 	local multiplier = evolver:GetAttribute("Multiplier")
-	if type(requiredTargets) ~= "number" or type(multiplier) ~= "number" then
+	local segmentIndex = evolver:GetAttribute("SegmentIndex")
+	if
+		type(requiredTargets) ~= "number"
+		or type(multiplier) ~= "number"
+		or type(segmentIndex) ~= "number"
+		or not evolver:IsA("BasePart")
+	then
+		return false
+	end
+	local root = getRoot(player)
+	if
+		root == nil
+		or not race:canTouchTrackObject(
+			segmentIndex,
+			evolver.Position,
+			root.Position,
+			nil,
+			touchForwardHalfExtent(race.Direction, evolver)
+		)
+	then
 		return false
 	end
 	if race.RawTargetsCollected < requiredTargets then
@@ -334,9 +422,8 @@ function RaceService:HandleFinishTouched(player: Player, finish: Instance): bool
 	if type(finishMultiplier) ~= "number" or type(minimumElapsedSeconds) ~= "number" then
 		return false
 	end
-	local character = player.Character
-	local root = if character ~= nil then character:FindFirstChild("HumanoidRootPart") else nil
-	if root == nil or not root:IsA("BasePart") or not finish:IsA("BasePart") then
+	local root = getRoot(player)
+	if root == nil or not finish:IsA("BasePart") then
 		return false
 	end
 	if not race:canFinish(minimumElapsedSeconds, finish.Position, root.Position) then

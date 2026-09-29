@@ -38,7 +38,7 @@ Generated race content uses these internal tags:
 - `RaceEvolver`
 - `RaceFinish`
 
-Generated objects include `OwnerUserId` so another player cannot consume a run's rewards or progression.
+Generated objects include `OwnerUserId` so another player cannot consume a run's rewards or progression. Gates, targets, obstacles, and the evolver also include `SegmentIndex`; touch handling checks that the character has reached that segment.
 
 ## UI tags
 

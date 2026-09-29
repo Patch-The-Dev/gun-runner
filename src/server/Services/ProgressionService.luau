@@ -20,12 +20,16 @@ local ProgressionService = Knit.CreateService({
 })
 
 function ProgressionService:KnitInit()
+	self._requests = Knit.GetService("RequestGateService")
 	self._data = Knit.GetService("DataService")
 	self._economy = Knit.GetService("EconomyService")
 	self._entitlements = Knit.GetService("EntitlementService")
 end
 
 function ProgressionService.Client:BuyUpgrade(player: Player, request: unknown)
+	if not self.Server._requests:Allow(player, "Mutation") then
+		return { ok = false, error = "rate_limited" }
+	end
 	if not Contract.UpgradeRequest(request) then
 		return { ok = false, error = "invalid_request" }
 	end
@@ -64,6 +68,9 @@ function ProgressionService:BuyUpgrade(player: Player, upgradeId: string): Actio
 end
 
 function ProgressionService.Client:BuyRebirth(player: Player)
+	if not self.Server._requests:Allow(player, "Mutation") then
+		return { ok = false, error = "rate_limited" }
+	end
 	return self.Server:BuyRebirth(player)
 end
 

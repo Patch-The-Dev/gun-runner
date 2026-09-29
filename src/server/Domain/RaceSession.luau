@@ -42,6 +42,29 @@ local function isFinitePositive(value: number): boolean
 	return value > 0 and value == value and value ~= math.huge
 end
 
+local function isFiniteVector3(value: Vector3): boolean
+	return value.X == value.X
+		and value.Y == value.Y
+		and value.Z == value.Z
+		and math.abs(value.X) < math.huge
+		and math.abs(value.Y) < math.huge
+		and math.abs(value.Z) < math.huge
+end
+
+local function isNearTrackPosition(
+	direction: Vector3,
+	position: Vector3,
+	characterPosition: Vector3
+): boolean
+	local offset = characterPosition - position
+	local horizontal = Vector3.new(offset.X, 0, offset.Z)
+	local forward = math.abs(horizontal:Dot(direction))
+	local lateral = (horizontal - direction * horizontal:Dot(direction)).Magnitude
+	return forward <= TrackConfig.CheckpointForwardTolerance
+		and lateral <= TrackConfig.CheckpointLateralTolerance
+		and math.abs(offset.Y) <= TrackConfig.CheckpointVerticalTolerance
+end
+
 function RaceSession.new(
 	baseWeapon: RunWeaponStats,
 	direction: Vector3,
@@ -83,23 +106,62 @@ function RaceSession:observePosition(position: Vector3, now: number?): boolean
 	if self.Finished or self.InvalidMovement then
 		return false
 	end
+	if not isFiniteVector3(position) then
+		self.InvalidMovement = true
+		return false
+	end
 	local observedAt = now or os.clock()
 	local elapsed = observedAt - self.LastObservedAt
-	if elapsed < TrackConfig.PositionSampleInterval then
-		return true
-	end
 	local delta = position - self.LastObservedPosition
 	local horizontalDistance = Vector3.new(delta.X, 0, delta.Z).Magnitude
 	if
 		horizontalDistance
-		> TrackConfig.MaxObservedHorizontalSpeed * elapsed + TrackConfig.PositionSampleSlack
+		> TrackConfig.MaxObservedHorizontalSpeed * math.max(0, elapsed)
+			+ TrackConfig.PositionSampleSlack
 	then
 		self.InvalidMovement = true
 		return false
 	end
+	if elapsed < TrackConfig.PositionSampleInterval then
+		return true
+	end
 	self.LastObservedPosition = position
 	self.LastObservedAt = observedAt
 	return true
+end
+
+function RaceSession:canTouchTrackObject(
+	segmentIndex: number,
+	objectPosition: Vector3,
+	characterPosition: Vector3,
+	now: number?,
+	forwardHalfExtent: number?
+): boolean
+	if
+		self.Finished
+		or self.InvalidMovement
+		or segmentIndex ~= self.LastCheckpointIndex + 1
+		or segmentIndex > self.TotalCheckpoints + 1
+	then
+		return false
+	end
+	local offset = characterPosition - objectPosition
+	if
+		Vector3.new(offset.X, 0, offset.Z).Magnitude > 9
+		or math.abs(offset.Y) > TrackConfig.CheckpointVerticalTolerance
+	then
+		return false
+	end
+	local observedAt = now or os.clock()
+	if not self:observePosition(characterPosition, observedAt) then
+		return false
+	end
+	local distance = (objectPosition - self.LastCheckpointPosition):Dot(self.Direction)
+	local minimumTime = math.max(
+		0,
+		distance - math.max(0, forwardHalfExtent or 0) - TrackConfig.CheckpointTravelSlack - 3
+	) / TrackConfig.RunnerFastPadSpeed * TrackConfig.MinimumFinishTimeScale
+	return observedAt - self.LastCheckpointAt >= minimumTime
 end
 
 function RaceSession:touchCheckpoint(
@@ -116,14 +178,13 @@ function RaceSession:touchCheckpoint(
 	if normalized ~= self.LastCheckpointIndex + 1 or normalized > self.TotalCheckpoints then
 		return false
 	end
-	local offset = characterPosition - checkpointPosition
-	if
-		Vector3.new(offset.X, 0, offset.Z).Magnitude > TrackConfig.CheckpointHorizontalTolerance
-		or math.abs(offset.Y) > TrackConfig.CheckpointVerticalTolerance
-	then
+	if not isNearTrackPosition(self.Direction, checkpointPosition, characterPosition) then
 		return false
 	end
 	local observedAt = now or os.clock()
+	if not self:observePosition(characterPosition, observedAt) then
+		return false
+	end
 	local distance = (checkpointPosition - self.LastCheckpointPosition):Dot(self.Direction)
 	local minimumTime = math.max(0, distance - TrackConfig.CheckpointTravelSlack)
 		/ TrackConfig.RunnerFastPadSpeed
@@ -151,14 +212,13 @@ function RaceSession:canFinish(
 	then
 		return false
 	end
-	local offset = characterPosition - finishPosition
-	if
-		Vector3.new(offset.X, 0, offset.Z).Magnitude > TrackConfig.CheckpointHorizontalTolerance
-		or math.abs(offset.Y) > TrackConfig.CheckpointVerticalTolerance
-	then
+	if not isNearTrackPosition(self.Direction, finishPosition, characterPosition) then
 		return false
 	end
 	local observedAt = now or os.clock()
+	if not self:observePosition(characterPosition, observedAt) then
+		return false
+	end
 	local distance = (finishPosition - self.LastCheckpointPosition):Dot(self.Direction)
 	local minimumSegmentTime = math.max(0, distance - TrackConfig.CheckpointTravelSlack)
 		/ TrackConfig.RunnerFastPadSpeed

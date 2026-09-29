@@ -1,5 +1,6 @@
 --!strict
 
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 
@@ -52,6 +53,7 @@ local function spreadDirections(direction: Vector3, projectileCount: number): { 
 end
 
 function WeaponService:KnitInit()
+	self._requests = Knit.GetService("RequestGateService")
 	self._data = Knit.GetService("DataService")
 	self._economy = Knit.GetService("EconomyService")
 	self._race = Knit.GetService("RaceService")
@@ -65,6 +67,9 @@ function WeaponService:KnitStart()
 end
 
 function WeaponService.Client:PurchaseWeapon(player: Player, request: unknown)
+	if not self.Server._requests:Allow(player, "Mutation") then
+		return { ok = false, error = "rate_limited" }
+	end
 	if not Contract.WeaponRequest(request) then
 		return { ok = false, error = "invalid_request" }
 	end
@@ -99,6 +104,9 @@ function WeaponService:PurchaseWeapon(player: Player, weaponId: string): ActionR
 end
 
 function WeaponService.Client:EquipWeapon(player: Player, request: unknown)
+	if not self.Server._requests:Allow(player, "Mutation") then
+		return { ok = false, error = "rate_limited" }
+	end
 	if not Contract.WeaponRequest(request) then
 		return { ok = false, error = "invalid_request" }
 	end
@@ -157,6 +165,9 @@ function WeaponService:FireWeapon(player: Player, direction: Vector3): boolean
 	if root == nil or not root:IsA("BasePart") then
 		return false
 	end
+	if not self._race:ValidateCharacterPosition(player) then
+		return false
+	end
 
 	local limiter = self._limiters[player]
 	if limiter == nil then
@@ -184,14 +195,30 @@ function WeaponService:FireWeapon(player: Player, direction: Vector3): boolean
 		end
 	end
 
-	self.Client.ShotReplicated:FireAll(
-		player.UserId,
-		origin,
-		direction.Unit,
-		session.Data.Weapons.Equipped or GameConfig.StarterWeaponId,
-		#directions,
-		session.Entitlements.ExplosiveRounds
-	)
+	for _, viewer in Players:GetPlayers() do
+		local viewerCharacter = viewer.Character
+		local viewerRoot = if viewerCharacter ~= nil
+			then viewerCharacter:FindFirstChild("HumanoidRootPart")
+			else nil
+		if
+			viewer == player
+			or (
+				viewerRoot ~= nil
+				and viewerRoot:IsA("BasePart")
+				and (viewerRoot.Position - origin).Magnitude <= 180
+			)
+		then
+			self.Client.ShotReplicated:Fire(
+				viewer,
+				player.UserId,
+				origin,
+				direction.Unit,
+				session.Data.Weapons.Equipped or GameConfig.StarterWeaponId,
+				#directions,
+				session.Entitlements.ExplosiveRounds
+			)
+		end
+	end
 	return true
 end
 

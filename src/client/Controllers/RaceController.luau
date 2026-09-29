@@ -24,8 +24,10 @@ function RaceController:KnitStart()
 
 	service
 		:GetSnapshot()
-		:andThen(function(snapshot: RaceSnapshot)
-			Store:setRace(snapshot)
+		:andThen(function(snapshot: RaceSnapshot?)
+			if snapshot ~= nil then
+				Store:setRace(snapshot)
+			end
 		end)
 		:catch(function(message: unknown)
 			warn(string.format("Failed to fetch initial race state: %s", tostring(message)))

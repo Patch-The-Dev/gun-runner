@@ -10,6 +10,7 @@ local Progression = require(ReplicatedStorage.Shared.Domain.Progression)
 local GiftService = Knit.CreateService({ Name = "GiftService", Client = {} })
 
 function GiftService:KnitInit()
+	self._requests = Knit.GetService("RequestGateService")
 	self._data = Knit.GetService("DataService")
 	self._economy = Knit.GetService("EconomyService")
 end
@@ -28,10 +29,16 @@ function GiftService:GetStatus(player: Player)
 end
 
 function GiftService.Client:GetStatus(player: Player)
+	if not self.Server._requests:Allow(player, "Read") then
+		return nil
+	end
 	return self.Server:GetStatus(player)
 end
 
 function GiftService.Client:Claim(player: Player)
+	if not self.Server._requests:Allow(player, "Claim") then
+		return { ok = false, error = "rate_limited" }
+	end
 	return self.Server:Claim(player)
 end
 

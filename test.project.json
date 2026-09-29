@@ -21,6 +21,9 @@
         "Domain": {
           "$path": "src/server/Domain"
         },
+        "Infrastructure": {
+          "$path": "src/server/Infrastructure"
+        },
         "Persistence": {
           "$path": "src/server/Persistence"
         }

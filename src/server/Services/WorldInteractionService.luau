@@ -24,6 +24,20 @@ local function asTouchPart(instance: Instance): BasePart?
 	return instance:FindFirstChildWhichIsA("BasePart", true)
 end
 
+local function isCharacterNearPart(player: Player, part: BasePart): boolean
+	local character = player.Character
+	local root = if character ~= nil then character:FindFirstChild("HumanoidRootPart") else nil
+	if root == nil or not root:IsA("BasePart") then
+		return false
+	end
+	local localPosition = part.CFrame:PointToObjectSpace(root.Position)
+	local halfSize = part.Size / 2
+	local margin = 4
+	return math.abs(localPosition.X) <= halfSize.X + margin
+		and math.abs(localPosition.Y) <= halfSize.Y + margin
+		and math.abs(localPosition.Z) <= halfSize.Z + margin
+end
+
 function WorldInteractionService:KnitInit()
 	self._progression = Knit.GetService("ProgressionService")
 	self._race = Knit.GetService("RaceService")
@@ -108,7 +122,12 @@ function WorldInteractionService:_bind(tag: string, callback: (Player, Instance)
 		end
 		local connection = part.Touched:Connect(function(hit)
 			local player = playerFromHit(hit)
-			if player ~= nil and self:_allowTouch(player, instance) then
+			if
+				player ~= nil
+				and isCharacterNearPart(player, part)
+				and self._race:ValidateCharacterPosition(player)
+				and self:_allowTouch(player, instance)
+			then
 				callback(player, instance)
 			end
 		end)

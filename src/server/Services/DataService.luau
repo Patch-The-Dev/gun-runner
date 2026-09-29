@@ -26,6 +26,7 @@ DataService.SessionAdded = Signal.new()
 DataService.SessionRemoving = Signal.new()
 
 function DataService:KnitInit()
+	self._requests = Knit.GetService("RequestGateService")
 	self._repository = PlayerRepository.new()
 	self._sessions = {} :: { [Player]: PlayerSessionType }
 	self._loading = {} :: { [Player]: boolean }
@@ -131,6 +132,9 @@ function DataService:ConfirmReceiptSaved(player: Player, purchaseId: string)
 end
 
 function DataService.Client:GetSnapshot(player: Player): PlayerSnapshot?
+	if not self.Server._requests:Allow(player, "Read") then
+		return nil
+	end
 	return self.Server:GetSnapshot(player)
 end
 

@@ -8,15 +8,15 @@ The client may request actions and provide identifiers or aiming direction. It d
 
 ## Network validation
 
-Knit is the transport layer. Request payloads are validated with `t` before service methods use them.
+Knit is the transport layer. Request payloads are validated with `t` before service methods use them. A per-player token budget bounds snapshot, purchase, rebirth, and gift calls. Budgets are cleared when a player leaves; business rules still validate every accepted request.
 
-The weapon endpoint validates finite direction vectors, limits aim to a narrow cone around the run direction, and applies a server rate limiter. Raycasts and damage are calculated on the server from the authoritative race weapon state.
+The weapon endpoint validates finite direction vectors, limits aim to a narrow cone around the run direction, and applies a server fire-rate limiter. Raycasts and damage are calculated on the server from the authoritative race weapon state. Shot visuals are replicated only to nearby players.
 
 ## Race authority
 
 Character movement remains client responsive, as expected for Roblox player characters. Race state and rewards are server-owned.
 
-Generated tracks contain invisible server-owned checkpoints spanning each segment. The server checks checkpoint order, character proximity, and minimum travel time from the previous checkpoint. It samples horizontal position during the run and cancels runs with implausible jumps. Finish triggers also enforce a minimum elapsed time based on track distance and the fastest configured runner speed. These checks reduce teleport and shortcut payouts, but sampled positions cannot prove every movement was legitimate.
+Generated tracks contain invisible server-owned checkpoints spanning each segment. The server checks checkpoint order, character proximity, and minimum travel time from the previous checkpoint. Gates, obstacles, and the evolver are accepted only in the current segment with nearby character position and plausible travel time. Touch events also verify the character's root position against the touched part. The server samples horizontal position during the run and at interaction time, cancelling runs with implausible jumps. Finish triggers enforce a minimum elapsed time based on track distance and the fastest configured runner speed. These checks reduce teleport and shortcut payouts, but client-owned character physics cannot prove every movement was legitimate.
 
 ## Economy
 
