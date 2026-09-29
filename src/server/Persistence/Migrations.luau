@@ -121,13 +121,16 @@ local function migrateToStructuredData(rawData: MutableData)
 	currencies.Targets = math.max(0, numberOr(targets, 0))
 	rawData.Currencies = currencies
 
-	local upgrades = tableOrEmpty(rawData.Upgrades)
+	local previousUpgrades = tableOrEmpty(rawData.Upgrades)
+	local upgrades: MutableData = {}
 	local legacyLevels = tableOrEmpty(rawData.UpgradeLevels)
 	for upgradeId, defaultLevel in Progression.getDefaultUpgradeLevels() do
-		local candidate = if upgrades[upgradeId] ~= nil
-			then upgrades[upgradeId]
+		local candidate = if previousUpgrades[upgradeId] ~= nil
+			then previousUpgrades[upgradeId]
 			else legacyLevels[upgradeId]
-		upgrades[upgradeId] = math.max(0, math.floor(numberOr(candidate, defaultLevel)))
+		local level = math.max(0, math.floor(numberOr(candidate, defaultLevel)))
+		local maxLevel = maxLevelForUpgrade(upgradeId)
+		upgrades[upgradeId] = if maxLevel ~= nil then math.min(level, maxLevel) else level
 	end
 	rawData.Upgrades = upgrades
 	rawData.UpgradeLevels = nil
@@ -204,6 +207,15 @@ function Migrations.apply(rawData: MutableData): PlayerData
 		version = 6
 	end
 
+	-- Recheck current-version records too. A schema number does not guarantee valid values.
+	migrateToStructuredData(rawData)
+	local receipts = tableOrEmpty(rawData.ProcessedReceipts)
+	for purchaseId, timestamp in receipts do
+		if type(purchaseId) ~= "string" or numberOr(timestamp, -1) < 0 then
+			receipts[purchaseId] = nil
+		end
+	end
+	rawData.ProcessedReceipts = receipts
 	rawData.SchemaVersion = version
 	return rawData :: PlayerData
 end

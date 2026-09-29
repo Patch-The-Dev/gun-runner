@@ -19,5 +19,11 @@ return function()
 			expect(result.Range > 0).to.equal(true)
 			expect(result.FireRate > 0).to.equal(true)
 		end)
+
+		it("rejects aim outside the race direction", function()
+			expect(WeaponMath.isAimWithinCone(Vector3.zAxis, Vector3.zAxis, 12)).to.equal(true)
+			expect(WeaponMath.isAimWithinCone(Vector3.xAxis, Vector3.zAxis, 12)).to.equal(false)
+			expect(WeaponMath.isAimWithinCone(-Vector3.zAxis, Vector3.zAxis, 12)).to.equal(false)
+		end)
 	end)
 end

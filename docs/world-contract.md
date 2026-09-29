@@ -1,6 +1,6 @@
 # World Contract
 
-The original game was authored directly in Studio. This portfolio repository intentionally separates code from map assets.
+The live game uses Studio-authored map and interface assets. This document records the objects, tags, and attributes that connect those assets to the Rojo source.
 
 ## Player bases
 
@@ -64,6 +64,6 @@ Buttons:
 - `GiftClaimButton`
 - `InviteButton`
 
-## Asset policy
+## Asset integration
 
-The repository does not recreate the original Studio map in source code. Reviewers can inspect game logic without binary place files, while the contract above documents the integration points needed to attach the code to a place.
+Studio-authored assets supply the bases, map, and interface. The tags and attributes above are their contract with the source modules.

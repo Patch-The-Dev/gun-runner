@@ -7,40 +7,24 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Knit = require(ReplicatedStorage.Packages.Knit)
 local Promise = require(ReplicatedStorage.Packages.Promise)
 
+local EntitlementPolicy = require(script.Parent.Parent.Domain.EntitlementPolicy)
 local EntitlementTypes = require(ReplicatedStorage.Shared.Types.Entitlements)
 local ProductConfig = require(ReplicatedStorage.Shared.Config.ProductConfig)
 
 type Entitlements = EntitlementTypes.Entitlements
-type GamePassEffect = ProductConfig.GamePassEffect
 
 local EntitlementService = Knit.CreateService({
 	Name = "EntitlementService",
 	Client = { EntitlementsChanged = Knit.CreateSignal() },
 })
 
-local function createDefault(): Entitlements
-	return {
-		CashMultiplier = 1,
-		TargetMultiplier = 1,
-		RebirthIncrement = 1,
-		ProjectileCount = 1,
-		ExplosiveRounds = false,
-	}
-end
-
-local function applyEffect(state: Entitlements, effect: GamePassEffect)
-	state.CashMultiplier += effect.CashBonus or 0
-	state.TargetMultiplier += effect.TargetBonus or 0
-	state.RebirthIncrement += effect.RebirthBonus or 0
-	state.ProjectileCount = math.max(state.ProjectileCount, effect.ProjectileCount or 1)
-	state.ExplosiveRounds = state.ExplosiveRounds or effect.ExplosiveRounds == true
-end
-
 function EntitlementService:KnitInit()
 	self._data = Knit.GetService("DataService")
 	self._states = {} :: { [Player]: Entitlements }
+	self._ownerships = {} :: { [Player]: { [number]: boolean } }
 	self._loading = {} :: { [Player]: boolean }
 	self._loadVersion = {} :: { [Player]: number }
+	self._retryCount = {} :: { [Player]: number }
 end
 
 function EntitlementService:KnitStart()
@@ -49,8 +33,10 @@ function EntitlementService:KnitStart()
 	end)
 	self._data.SessionRemoving:Connect(function(player)
 		self._states[player] = nil
+		self._ownerships[player] = nil
 		self._loading[player] = nil
 		self._loadVersion[player] = nil
+		self._retryCount[player] = nil
 	end)
 
 	for _, player in Players:GetPlayers() do
@@ -78,6 +64,9 @@ function EntitlementService:_publish(player: Player, state: Entitlements)
 end
 
 function EntitlementService:_load(player: Player, force: boolean?)
+	if player.Parent ~= Players or self._data:GetSession(player) == nil then
+		return
+	end
 	if self._loading[player] and not force then
 		return
 	end
@@ -87,28 +76,33 @@ function EntitlementService:_load(player: Player, force: boolean?)
 	self._loading[player] = true
 
 	local jobs = {}
-	for gamePassId, effect in ProductConfig.GamePasses do
+	for gamePassId in ProductConfig.GamePasses do
 		table.insert(
 			jobs,
 			Promise.new(function(resolve)
-				local success, ownsPass = pcall(
-					MarketplaceService.UserOwnsGamePassAsync,
-					MarketplaceService,
-					player.UserId,
-					gamePassId
-				)
-				if not success then
-					warn(
-						string.format(
-							"Failed to check game pass %d for %s",
-							gamePassId,
-							player.Name
-						)
+				for attempt = 1, 3 do
+					local success, ownsPass = pcall(
+						MarketplaceService.UserOwnsGamePassAsync,
+						MarketplaceService,
+						player.UserId,
+						gamePassId
 					)
-					resolve({ Success = false })
-					return
+					if success then
+						resolve({ Id = gamePassId, Success = true, Owns = ownsPass == true })
+						return
+					end
+					if attempt < 3 then
+						task.wait(attempt)
+					end
 				end
-				resolve({ Success = true, Effect = if ownsPass then effect else nil })
+				warn(
+					string.format(
+						"Game pass %d lookup failed for %s after 3 attempts",
+						gamePassId,
+						player.Name
+					)
+				)
+				resolve({ Id = gamePassId, Success = false })
 			end)
 		)
 	end
@@ -119,18 +113,23 @@ function EntitlementService:_load(player: Player, force: boolean?)
 				return
 			end
 
-			local state = createDefault()
-			for _, result in results do
-				if result.Success ~= true then
-					return
-				end
-				if result.Effect ~= nil then
-					applyEffect(state, result.Effect)
-				end
-			end
-
+			local ownerships, failed =
+				EntitlementPolicy.merge(self._ownerships[player] or {}, results)
+			self._ownerships[player] = ownerships
+			local state = EntitlementPolicy.build(ownerships)
 			self._states[player] = state
 			self:_publish(player, state)
+			if failed then
+				local retryCount = math.min((self._retryCount[player] or 0) + 1, 5)
+				self._retryCount[player] = retryCount
+				task.delay(math.min(60, 5 * 2 ^ (retryCount - 1)), function()
+					if self._loadVersion[player] == loadVersion then
+						self:_load(player)
+					end
+				end)
+			else
+				self._retryCount[player] = 0
+			end
 		end)
 		:finally(function()
 			if self._loadVersion[player] == loadVersion then
@@ -140,7 +139,7 @@ function EntitlementService:_load(player: Player, force: boolean?)
 end
 
 function EntitlementService:Get(player: Player): Entitlements
-	return self._states[player] or createDefault()
+	return self._states[player] or EntitlementPolicy.build({})
 end
 
 function EntitlementService.Client:GetSnapshot(player: Player): Entitlements

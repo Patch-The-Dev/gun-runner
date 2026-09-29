@@ -10,4 +10,5 @@ return table.freeze({
 	ReceiptRetentionSeconds = 90 * 24 * 60 * 60,
 	MaxProcessedReceipts = 250,
 	TouchDebounceSeconds = 0.35,
+	WeaponAimToleranceDegrees = 12,
 })

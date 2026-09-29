@@ -11,6 +11,7 @@ local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 local NetworkTypes = require(ReplicatedStorage.Shared.Types.Network)
 local RateLimiter = require(ReplicatedStorage.Shared.Util.RateLimiter)
 local WeaponConfig = require(ReplicatedStorage.Shared.Config.WeaponConfig)
+local WeaponMath = require(ReplicatedStorage.Shared.Domain.WeaponMath)
 
 type ActionResult = CommonTypes.ActionResult
 type FireWeaponRequest = NetworkTypes.FireWeaponRequest
@@ -139,6 +140,15 @@ function WeaponService:FireWeapon(player: Player, direction: Vector3): boolean
 	local session = self._data:GetSession(player)
 	local race = if session ~= nil then session.Race else nil
 	if session == nil or race == nil or race.Finished then
+		return false
+	end
+	if
+		not WeaponMath.isAimWithinCone(
+			direction,
+			race.Direction,
+			GameConfig.WeaponAimToleranceDegrees
+		)
+	then
 		return false
 	end
 

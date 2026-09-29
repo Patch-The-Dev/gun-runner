@@ -3,6 +3,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local RaceTypes = require(ReplicatedStorage.Shared.Types.Race)
+local TrackConfig = require(ReplicatedStorage.Shared.Config.TrackConfig)
 local WeaponMath = require(ReplicatedStorage.Shared.Domain.WeaponMath)
 
 type RunWeaponStats = RaceTypes.RunWeaponStats
@@ -28,6 +29,11 @@ export type RaceSession = typeof(setmetatable(
 		EvolverUsed: boolean,
 		TotalCheckpoints: number,
 		LastCheckpointIndex: number,
+		LastCheckpointPosition: Vector3,
+		LastCheckpointAt: number,
+		LastObservedPosition: Vector3,
+		LastObservedAt: number,
+		InvalidMovement: boolean,
 	},
 	RaceSession
 ))
@@ -39,11 +45,14 @@ end
 function RaceSession.new(
 	baseWeapon: RunWeaponStats,
 	direction: Vector3,
-	totalCheckpoints: number
+	totalCheckpoints: number,
+	startPosition: Vector3,
+	startedAt: number?
 ): RaceSession
 	assert(direction.Magnitude > 0.001, "Race direction must be non-zero")
+	local now = startedAt or os.clock()
 	return setmetatable({
-		StartedAt = os.clock(),
+		StartedAt = now,
 		RunCash = 0,
 		RunTargets = 0,
 		RawTargetsCollected = 0,
@@ -58,6 +67,11 @@ function RaceSession.new(
 		EvolverUsed = false,
 		TotalCheckpoints = math.max(1, math.floor(totalCheckpoints)),
 		LastCheckpointIndex = 0,
+		LastCheckpointPosition = startPosition,
+		LastCheckpointAt = now,
+		LastObservedPosition = startPosition,
+		LastObservedAt = now,
+		InvalidMovement = false,
 	}, RaceSession)
 end
 
@@ -65,8 +79,36 @@ function RaceSession:elapsed(): number
 	return math.max(0, os.clock() - self.StartedAt)
 end
 
-function RaceSession:touchCheckpoint(index: number): boolean
-	if self.Finished then
+function RaceSession:observePosition(position: Vector3, now: number?): boolean
+	if self.Finished or self.InvalidMovement then
+		return false
+	end
+	local observedAt = now or os.clock()
+	local elapsed = observedAt - self.LastObservedAt
+	if elapsed < TrackConfig.PositionSampleInterval then
+		return true
+	end
+	local delta = position - self.LastObservedPosition
+	local horizontalDistance = Vector3.new(delta.X, 0, delta.Z).Magnitude
+	if
+		horizontalDistance
+		> TrackConfig.MaxObservedHorizontalSpeed * elapsed + TrackConfig.PositionSampleSlack
+	then
+		self.InvalidMovement = true
+		return false
+	end
+	self.LastObservedPosition = position
+	self.LastObservedAt = observedAt
+	return true
+end
+
+function RaceSession:touchCheckpoint(
+	index: number,
+	checkpointPosition: Vector3,
+	characterPosition: Vector3,
+	now: number?
+): boolean
+	if self.Finished or self.InvalidMovement then
 		return false
 	end
 
@@ -74,15 +116,55 @@ function RaceSession:touchCheckpoint(index: number): boolean
 	if normalized ~= self.LastCheckpointIndex + 1 or normalized > self.TotalCheckpoints then
 		return false
 	end
+	local offset = characterPosition - checkpointPosition
+	if
+		Vector3.new(offset.X, 0, offset.Z).Magnitude > TrackConfig.CheckpointHorizontalTolerance
+		or math.abs(offset.Y) > TrackConfig.CheckpointVerticalTolerance
+	then
+		return false
+	end
+	local observedAt = now or os.clock()
+	local distance = (checkpointPosition - self.LastCheckpointPosition):Dot(self.Direction)
+	local minimumTime = math.max(0, distance - TrackConfig.CheckpointTravelSlack)
+		/ TrackConfig.RunnerFastPadSpeed
+		* TrackConfig.MinimumFinishTimeScale
+	if observedAt - self.LastCheckpointAt < minimumTime then
+		return false
+	end
 
 	self.LastCheckpointIndex = normalized
+	self.LastCheckpointPosition = checkpointPosition
+	self.LastCheckpointAt = observedAt
 	return true
 end
 
-function RaceSession:canFinish(minimumElapsedSeconds: number): boolean
-	return not self.Finished
-		and self.LastCheckpointIndex >= self.TotalCheckpoints
-		and self:elapsed() >= math.max(0, minimumElapsedSeconds)
+function RaceSession:canFinish(
+	minimumElapsedSeconds: number,
+	finishPosition: Vector3,
+	characterPosition: Vector3,
+	now: number?
+): boolean
+	if
+		self.Finished
+		or self.InvalidMovement
+		or self.LastCheckpointIndex < self.TotalCheckpoints
+	then
+		return false
+	end
+	local offset = characterPosition - finishPosition
+	if
+		Vector3.new(offset.X, 0, offset.Z).Magnitude > TrackConfig.CheckpointHorizontalTolerance
+		or math.abs(offset.Y) > TrackConfig.CheckpointVerticalTolerance
+	then
+		return false
+	end
+	local observedAt = now or os.clock()
+	local distance = (finishPosition - self.LastCheckpointPosition):Dot(self.Direction)
+	local minimumSegmentTime = math.max(0, distance - TrackConfig.CheckpointTravelSlack)
+		/ TrackConfig.RunnerFastPadSpeed
+		* TrackConfig.MinimumFinishTimeScale
+	return observedAt - self.StartedAt >= math.max(0, minimumElapsedSeconds)
+		and observedAt - self.LastCheckpointAt >= minimumSegmentTime
 end
 
 function RaceSession:addCash(amount: number): boolean

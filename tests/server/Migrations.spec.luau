@@ -70,5 +70,18 @@ return function()
 			expect(migrated.SchemaVersion).to.equal(6)
 			expect(raw.Social).to.equal(nil)
 		end)
+
+		it("bounds upgrades in an already-current profile", function()
+			local migrated = Migrations.apply({
+				SchemaVersion = 6,
+				Currencies = { Cash = 10, Targets = 20 },
+				Upgrades = { TrackLength = 1_000_000, FinishLength = math.huge },
+				Weapons = { Owned = { Revolver = true }, Equipped = "Revolver" },
+				ProcessedReceipts = {},
+			})
+			expect(migrated.Upgrades.TrackLength).to.equal(45)
+			expect(migrated.Upgrades.FinishLength).to.equal(0)
+			expect(migrated.Currencies.Cash).to.equal(10)
+		end)
 	end)
 end

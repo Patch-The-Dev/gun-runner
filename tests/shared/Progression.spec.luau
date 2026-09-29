@@ -13,6 +13,7 @@ return function()
 		it("clamps bounded upgrade values", function()
 			local chance = Progression.getUpgradeValue("BoosterSpawnChance", 10_000)
 			expect(chance).to.equal(0.95)
+			expect(Progression.getUpgradeValue("TrackLength", 1_000_000)).to.equal(50)
 		end)
 
 		it("returns nil for unknown upgrades", function()

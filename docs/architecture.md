@@ -37,7 +37,7 @@ Key responsibilities:
 
 `PlayerSession` and `RaceSession` are stateful server-owned objects. Pure calculations remain in `src/shared/Domain`.
 
-`RaceSession` tracks consumed world objects and ordered checkpoints. A finish is accepted only after every generated checkpoint has been observed in sequence and the minimum physically plausible elapsed time has passed.
+`RaceSession` tracks consumed world objects and ordered checkpoints. It checks checkpoint proximity, segment timing, sampled movement, and minimum finish time before accepting a payout.
 
 ### Persistence
 
@@ -51,7 +51,7 @@ Developer product purchase IDs are persisted in `ProcessedReceipts`. A receipt i
 
 Controllers coordinate input, UI, and server calls. `ClientStore` is the single local snapshot store for player and race state. Controllers do not mutate authoritative values.
 
-`RunnerController` owns local movement presentation and camera behavior. Movement is treated as untrusted. Server race completion still requires ordered checkpoints and elapsed-time validation.
+`RunnerController` owns local movement presentation and camera behavior. Movement is treated as untrusted. Server race completion requires ordered checkpoints, proximity, segment timing, sampled movement, and finish-time validation.
 
 `WeaponController` sends aim direction only. The server chooses the origin, fire rate, weapon stats, range, projectile count, damage, and hit result.
 
@@ -75,4 +75,4 @@ Promise is limited to operations that are actually asynchronous, such as Profile
 
 ## World integration
 
-Map assets stay outside this portfolio repository. The code discovers map behavior using CollectionService tags and attributes. See `world-contract.md`.
+The code discovers Studio map behavior using CollectionService tags and attributes. See `world-contract.md`.

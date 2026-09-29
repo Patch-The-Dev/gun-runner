@@ -1,7 +1,9 @@
 --!strict
 
 local CollectionService = game:GetService("CollectionService")
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 
 local Knit = require(ReplicatedStorage.Packages.Knit)
 
@@ -53,6 +55,25 @@ function RaceService:KnitInit()
 end
 
 function RaceService:KnitStart()
+	RunService.Heartbeat:Connect(function()
+		for _, player in Players:GetPlayers() do
+			local race = self:GetRace(player)
+			if race ~= nil then
+				local character = player.Character
+				local root = if character ~= nil
+					then character:FindFirstChild("HumanoidRootPart")
+					else nil
+				if
+					root ~= nil
+					and root:IsA("BasePart")
+					and not race:observePosition(root.Position)
+				then
+					self:CancelRace(player)
+					self._base:TeleportToBase(player)
+				end
+			end
+		end
+	end)
 	self._data.SessionAdded:Connect(function(player, session)
 		session.Trove:Connect(player.CharacterRemoving, function()
 			self:CancelRace(player)
@@ -92,12 +113,18 @@ function RaceService:StartRace(player: Player): boolean
 		self._tracks:ClearTrack(player)
 		return false
 	end
+	local character = player.Character
+	local root = if character ~= nil then character:FindFirstChild("HumanoidRootPart") else nil
+	if root == nil or not root:IsA("BasePart") then
+		self._tracks:ClearTrack(player)
+		return false
+	end
 
 	session.Race = RaceSession.new({
 		Damage = weaponDefinition.Damage,
 		Range = weaponDefinition.Range,
 		FireRate = weaponDefinition.FireRate,
-	}, direction, checkpointCount)
+	}, direction, checkpointCount, root.Position)
 	base:SetAttribute("RaceActive", true)
 	self.Client.RaceChanged:Fire(player, session.Race:snapshot())
 	return true
@@ -144,7 +171,12 @@ function RaceService:HandleCheckpointTouched(player: Player, checkpoint: Instanc
 	if type(checkpointIndex) ~= "number" then
 		return false
 	end
-	return race:touchCheckpoint(checkpointIndex)
+	local character = player.Character
+	local root = if character ~= nil then character:FindFirstChild("HumanoidRootPart") else nil
+	if root == nil or not root:IsA("BasePart") or not checkpoint:IsA("BasePart") then
+		return false
+	end
+	return race:touchCheckpoint(checkpointIndex, checkpoint.Position, root.Position)
 end
 
 function RaceService:HandleGateTouched(player: Player, gate: Instance): boolean
@@ -302,7 +334,12 @@ function RaceService:HandleFinishTouched(player: Player, finish: Instance): bool
 	if type(finishMultiplier) ~= "number" or type(minimumElapsedSeconds) ~= "number" then
 		return false
 	end
-	if not race:canFinish(minimumElapsedSeconds) then
+	local character = player.Character
+	local root = if character ~= nil then character:FindFirstChild("HumanoidRootPart") else nil
+	if root == nil or not root:IsA("BasePart") or not finish:IsA("BasePart") then
+		return false
+	end
+	if not race:canFinish(minimumElapsedSeconds, finish.Position, root.Position) then
 		return false
 	end
 

@@ -10,6 +10,14 @@ local MIN_RANGE = 8
 local MIN_FIRE_RATE = 0.5
 local MAX_FIRE_RATE = 20
 
+function WeaponMath.isAimWithinCone(
+	aim: Vector3,
+	forward: Vector3,
+	toleranceDegrees: number
+): boolean
+	return aim.Unit:Dot(forward.Unit) >= math.cos(math.rad(toleranceDegrees))
+end
+
 function WeaponMath.applyGate(
 	stats: RunWeaponStats,
 	statName: string,

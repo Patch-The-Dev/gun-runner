@@ -35,11 +35,14 @@ end
 
 function Progression.getUpgradeValue(upgradeId: string, level: number): number?
 	local definition = ProgressionConfig[upgradeId]
-	if definition == nil or level < 0 then
+	if definition == nil or level < 0 or level ~= level or math.abs(level) == math.huge then
 		return nil
 	end
 
-	local value = definition.BaseValue + definition.Step * math.floor(level)
+	local boundedLevel = if definition.MaxLevel ~= nil
+		then math.min(math.floor(level), definition.MaxLevel)
+		else math.floor(level)
+	local value = definition.BaseValue + definition.Step * boundedLevel
 	if definition.MinValue ~= nil then
 		value = math.max(value, definition.MinValue)
 	end
