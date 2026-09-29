@@ -22,5 +22,16 @@ return function()
 			first:Destroy()
 			second:Destroy()
 		end)
+
+		it("rejects excess fire requests without blocking a legitimate 20 shot burst", function()
+			local budget = RequestBudget.new()
+			local player = Instance.new("Folder") :: any
+			for _ = 1, 40 do
+				expect(budget:allow(player, "Fire", 100)).to.equal(true)
+			end
+			expect(budget:allow(player, "Fire", 100)).to.equal(false)
+			expect(budget:allow(player, "Fire", 100.04)).to.equal(true)
+			player:Destroy()
+		end)
 	end)
 end

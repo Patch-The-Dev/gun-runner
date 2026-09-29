@@ -87,13 +87,13 @@ function WorldInteractionService:KnitStart()
 	end)
 	self:_bind("BaseFallZone", function(player, instance)
 		if self._base:OwnsInstance(player, instance) then
-			self._race:CancelRace(player)
+			self._race:CancelRace(player, "fall_zone")
 			self._base:TeleportToBase(player)
 		end
 	end)
 	self:_bind("MarketPortal", function(player, instance)
 		if self._base:OwnsInstance(player, instance) then
-			self._race:CancelRace(player)
+			self._race:CancelRace(player, "market_portal")
 			self._base:TeleportToMarker(player, "MarketSpawn")
 		end
 	end)

@@ -56,7 +56,13 @@ function MonetizationService:_processReceipt(receiptInfo): Enum.ProductPurchaseD
 	if player == nil then
 		return Enum.ProductPurchaseDecision.NotProcessedYet
 	end
+	return self:_processReceiptForPlayer(player, receiptInfo)
+end
 
+function MonetizationService:_processReceiptForPlayer(
+	player: Player,
+	receiptInfo
+): Enum.ProductPurchaseDecision
 	local data = self._data:GetData(player)
 	if data == nil then
 		return Enum.ProductPurchaseDecision.NotProcessedYet

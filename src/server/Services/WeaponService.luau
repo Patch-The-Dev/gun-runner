@@ -2,6 +2,7 @@
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 
 local Knit = require(ReplicatedStorage.Packages.Knit)
@@ -11,6 +12,7 @@ local Contract = require(ReplicatedStorage.Shared.Network.Contract)
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 local NetworkTypes = require(ReplicatedStorage.Shared.Types.Network)
 local RateLimiter = require(ReplicatedStorage.Shared.Util.RateLimiter)
+local ShotAudience = require(script.Parent.Parent.Domain.ShotAudience)
 local WeaponConfig = require(ReplicatedStorage.Shared.Config.WeaponConfig)
 local WeaponMath = require(ReplicatedStorage.Shared.Domain.WeaponMath)
 
@@ -58,12 +60,34 @@ function WeaponService:KnitInit()
 	self._economy = Knit.GetService("EconomyService")
 	self._race = Knit.GetService("RaceService")
 	self._limiters = {} :: { [Player]: RateLimiter.RateLimiter }
+	self._audience = ShotAudience.new()
 end
 
 function WeaponService:KnitStart()
+	self:_refreshAudience()
+	local refreshAccumulator = 0
+	RunService.Heartbeat:Connect(function(deltaTime)
+		refreshAccumulator += deltaTime
+		if refreshAccumulator >= 0.25 then
+			refreshAccumulator %= 0.25
+			self:_refreshAudience()
+		end
+	end)
 	self._data.SessionRemoving:Connect(function(player)
 		self._limiters[player] = nil
 	end)
+end
+
+function WeaponService:_refreshAudience()
+	local positions: { [Player]: Vector3 } = {}
+	for _, viewer in Players:GetPlayers() do
+		local character = viewer.Character
+		local root = if character ~= nil then character:FindFirstChild("HumanoidRootPart") else nil
+		if root ~= nil and root:IsA("BasePart") then
+			positions[viewer] = root.Position
+		end
+	end
+	self._audience:rebuild(positions)
 end
 
 function WeaponService.Client:PurchaseWeapon(player: Player, request: unknown)
@@ -133,6 +157,9 @@ function WeaponService:EquipWeapon(player: Player, weaponId: string): ActionResu
 end
 
 function WeaponService.Client:FireWeapon(player: Player, request: unknown): boolean
+	if not self.Server._requests:Allow(player, "Fire") then
+		return false
+	end
 	if not Contract.FireWeaponRequest(request) then
 		return false
 	end
@@ -195,28 +222,32 @@ function WeaponService:FireWeapon(player: Player, direction: Vector3): boolean
 		end
 	end
 
-	for _, viewer in Players:GetPlayers() do
+	local function replicateTo(viewer: Player)
+		self.Client.ShotReplicated:Fire(
+			viewer,
+			player.UserId,
+			origin,
+			direction.Unit,
+			session.Data.Weapons.Equipped or GameConfig.StarterWeaponId,
+			#directions,
+			session.Entitlements.ExplosiveRounds
+		)
+	end
+	replicateTo(player)
+	for _, viewer in self._audience:near(origin, 180) do
+		if viewer == player or viewer.Parent ~= Players then
+			continue
+		end
 		local viewerCharacter = viewer.Character
 		local viewerRoot = if viewerCharacter ~= nil
 			then viewerCharacter:FindFirstChild("HumanoidRootPart")
 			else nil
 		if
-			viewer == player
-			or (
-				viewerRoot ~= nil
-				and viewerRoot:IsA("BasePart")
-				and (viewerRoot.Position - origin).Magnitude <= 180
-			)
+			viewerRoot ~= nil
+			and viewerRoot:IsA("BasePart")
+			and (viewerRoot.Position - origin).Magnitude <= 180
 		then
-			self.Client.ShotReplicated:Fire(
-				viewer,
-				player.UserId,
-				origin,
-				direction.Unit,
-				session.Data.Weapons.Equipped or GameConfig.StarterWeaponId,
-				#directions,
-				session.Entitlements.ExplosiveRounds
-			)
+			replicateTo(viewer)
 		end
 	end
 	return true

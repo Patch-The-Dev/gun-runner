@@ -35,7 +35,7 @@ Key responsibilities:
 
 ### Domain
 
-`PlayerSession` and `RaceSession` are stateful server-owned objects. Pure calculations remain in `src/shared/Domain`.
+`PlayerSession` and `RaceSession` are stateful server-owned objects. `ShotAudience` maintains a coarse spatial index for nearby shot visuals. Pure calculations remain in `src/shared/Domain`.
 
 `RaceSession` tracks consumed world objects and ordered checkpoints. It checks checkpoint proximity, segment timing, sampled movement, and minimum finish time before accepting a payout.
 
@@ -49,7 +49,7 @@ Developer product purchase IDs are persisted in `ProcessedReceipts`. A receipt i
 
 ## Client layers
 
-Controllers coordinate input, UI, and server calls. `ClientStore` is the single local snapshot store for player and race state. Controllers do not mutate authoritative values.
+Controllers coordinate input, UI, and server calls. `ClientStore` is the single local snapshot store for player and race state. It copies and freezes nested snapshot data so consumers cannot change it. Controllers do not mutate authoritative values.
 
 `RunnerController` owns local movement presentation and camera behavior. Movement is treated as untrusted. Server race completion requires ordered checkpoints, proximity, segment timing, sampled movement, and finish-time validation.
 

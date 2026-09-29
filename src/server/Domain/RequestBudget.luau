@@ -14,6 +14,7 @@ local POLICIES = table.freeze({
 	Read = { capacity = 8, refill = 4 },
 	Mutation = { capacity = 4, refill = 2 },
 	Claim = { capacity = 2, refill = 1 },
+	Fire = { capacity = 40, refill = 25 },
 })
 
 function RequestBudget.new(): RequestBudget

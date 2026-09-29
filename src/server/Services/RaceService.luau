@@ -1,5 +1,6 @@
 --!strict
 
+local AnalyticsService = game:GetService("AnalyticsService")
 local CollectionService = game:GetService("CollectionService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -67,34 +68,28 @@ function RaceService:KnitInit()
 	self._economy = Knit.GetService("EconomyService")
 	self._base = Knit.GetService("BaseService")
 	self._tracks = Knit.GetService("TrackService")
+	self._activePlayers = {} :: { [Player]: boolean }
 end
 
 function RaceService:KnitStart()
-	RunService.Heartbeat:Connect(function()
-		for _, player in Players:GetPlayers() do
-			local race = self:GetRace(player)
-			if race ~= nil then
-				local character = player.Character
-				local root = if character ~= nil
-					then character:FindFirstChild("HumanoidRootPart")
-					else nil
-				if
-					root ~= nil
-					and root:IsA("BasePart")
-					and not race:observePosition(root.Position)
-				then
-					self:CancelRace(player)
-					self._base:TeleportToBase(player)
-				end
-			end
+	local sampleAccumulator = 0
+	RunService.Heartbeat:Connect(function(deltaTime)
+		sampleAccumulator += deltaTime
+		if sampleAccumulator < TrackConfig.PositionSampleInterval then
+			return
+		end
+		sampleAccumulator %= TrackConfig.PositionSampleInterval
+		for player in self._activePlayers do
+			self:ValidateCharacterPosition(player)
 		end
 	end)
 	self._data.SessionAdded:Connect(function(player, session)
 		session.Trove:Connect(player.CharacterRemoving, function()
-			self:CancelRace(player)
+			self:CancelRace(player, "character_removed")
 		end)
 	end)
 	self._data.SessionRemoving:Connect(function(player, session)
+		self._activePlayers[player] = nil
 		if session.Race ~= nil then
 			session.Race = nil
 		end
@@ -140,6 +135,7 @@ function RaceService:StartRace(player: Player): boolean
 		Range = weaponDefinition.Range,
 		FireRate = weaponDefinition.FireRate,
 	}, direction, checkpointCount, root.Position)
+	self._activePlayers[player] = true
 	base:SetAttribute("RaceActive", true)
 	self.Client.RaceChanged:Fire(player, session.Race:snapshot())
 	return true
@@ -153,13 +149,17 @@ end
 function RaceService:ValidateCharacterPosition(player: Player): boolean
 	local race = self:GetRace(player)
 	if race == nil then
+		self._activePlayers[player] = nil
 		return true
 	end
 	local root = getRoot(player)
 	if root ~= nil and race:observePosition(root.Position) then
 		return true
 	end
-	self:CancelRace(player)
+	self:CancelRace(
+		player,
+		if root == nil then "missing_root" else race.InvalidReason or "movement_rejected"
+	)
 	self._base:TeleportToBase(player)
 	return false
 end
@@ -180,11 +180,33 @@ function RaceService:_publish(player: Player)
 	self.Client.RaceChanged:Fire(player, self:GetSnapshot(player))
 end
 
-function RaceService:CancelRace(player: Player)
-	local session = self._data:GetSession(player)
-	if session == nil or session.Race == nil then
+function RaceService:_recordRaceOutcome(player: Player, race, outcome: string)
+	if RunService:IsStudio() or player.Parent ~= Players then
 		return
 	end
+	local success, message = pcall(function()
+		AnalyticsService:LogCustomEvent(
+			player,
+			"GunRunnerRaceOutcome",
+			math.min(1000, race.MaxObservedSpeed),
+			{
+				Outcome = outcome,
+			}
+		)
+	end)
+	if not success then
+		warn(string.format("Race outcome analytics failed: %s", tostring(message)))
+	end
+end
+
+function RaceService:CancelRace(player: Player, reason: string?)
+	local session = self._data:GetSession(player)
+	if session == nil or session.Race == nil then
+		self._activePlayers[player] = nil
+		return
+	end
+	self._activePlayers[player] = nil
+	self:_recordRaceOutcome(player, session.Race, reason or "cancelled")
 	local base = self._base:GetBase(player)
 	if base ~= nil then
 		base:SetAttribute("RaceActive", false)
@@ -448,6 +470,8 @@ function RaceService:HandleFinishTouched(player: Player, finish: Instance): bool
 	end
 	self._data:PublishSnapshot(player)
 	self.Client.RaceChanged:Fire(player, race:snapshot())
+	self._activePlayers[player] = nil
+	self:_recordRaceOutcome(player, race, "finished")
 
 	local base = self._base:GetBase(player)
 	if base ~= nil then

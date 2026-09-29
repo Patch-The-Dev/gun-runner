@@ -12,6 +12,9 @@
       },
       "Shared": {
         "$path": "src/shared"
+      },
+      "ClientState": {
+        "$path": "src/client/State"
       }
     },
     "ServerScriptService": {
@@ -26,6 +29,9 @@
         },
         "Persistence": {
           "$path": "src/server/Persistence"
+        },
+        "Services": {
+          "$path": "src/server/Services"
         }
       },
       "Tests": {

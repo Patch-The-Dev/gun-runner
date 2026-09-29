@@ -61,6 +61,8 @@ return function()
 			)
 			expect(race:observePosition(Vector3.new(0, 0, 3), 100.2)).to.equal(true)
 			expect(race:observePosition(Vector3.new(0, 0, 80), 100.4)).to.equal(false)
+			expect(race.InvalidReason).to.equal("horizontal_speed")
+			expect(race.MaxObservedSpeed > 48).to.equal(true)
 			expect(race:touchCheckpoint(1, Vector3.new(0, 0, 28), Vector3.new(0, 0, 28), 102)).to.equal(
 				false
 			)

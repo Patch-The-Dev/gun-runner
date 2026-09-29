@@ -2,7 +2,7 @@
 
 **A Roblox runner game built around generated tracks, weapon combat, and persistent progression.**
 
-[![CI](https://github.com/Patch-The-Dev/gun-runner/actions/workflows/ci.yml/badge.svg)](https://github.com/Patch-The-Dev/gun-runner/actions/workflows/ci.yml)
+[![Source checks](https://github.com/Patch-The-Dev/gun-runner/actions/workflows/ci.yml/badge.svg)](https://github.com/Patch-The-Dev/gun-runner/actions/workflows/ci.yml)
 
 **[Play Gun Runner on Roblox](https://www.roblox.com/games/18336486336/Gun-Runner) · [Project page and gallery](https://www.patchthedev.com/work/gun-runner)**
 
@@ -34,7 +34,7 @@ The client supplies an aiming direction, not a hit or damage value. [WeaponServi
 
 [RaceService](src/server/Services/RaceService.luau) owns active runs and rewards. Its [RaceSession](src/server/Domain/RaceSession.luau) tracks checkpoint order and one time claims for targets, gates, obstacles, and pillars. Checkpoints and touch objects require the character to be nearby, in the current segment, and far enough into the run to reach them. The server samples position during the run and again when the character fires or touches an object, cancelling runs with implausible jumps. Finish validation also enforces a track-based minimum time. These are server-side plausibility checks for client-controlled character movement; they do not prove every movement was legitimate.
 
-[RequestGateService](src/server/Services/RequestGateService.luau) applies per-player budgets to snapshot, purchase, and gift requests. Shot events reach only players near the shooter. The client [tracer renderer](src/client/Systems/ShotTracer.luau) reuses a fixed pool of parts to bound visual object churn.
+[RequestGateService](src/server/Services/RequestGateService.luau) applies per-player budgets to snapshot, purchase, gift, and fire requests. Shot events reach nearby players through a spatial audience index. The client [tracer renderer](src/client/Systems/ShotTracer.luau) reuses a fixed pool of parts to bound visual object churn.
 
 ### Progression, economy, and purchases
 
@@ -46,7 +46,7 @@ The ten upgrades in [ProgressionConfig](src/shared/Config/ProgressionConfig.luau
 
 [PlayerRepository](src/server/Persistence/PlayerRepository.luau) contains the ProfileStore integration, while [PlayerSession](src/server/Domain/PlayerSession.luau) owns the loaded profile during play. Saved data has a versioned template and [migrations](src/server/Persistence/Migrations.luau) for older records. The load boundary also checks current-version values against configured upgrade limits. Studio uses ProfileStore's mock store.
 
-On the client, [ClientStore](src/client/State/ClientStore.luau) holds local snapshots for presentation. Controllers handle input, UI, and server calls without editing authoritative values. [UIController](src/client/Controllers/UIController.luau) finds tagged interface elements instead of depending on one fixed hierarchy. Trove manages long lived connections and objects.
+On the client, [ClientStore](src/client/State/ClientStore.luau) owns copied, frozen snapshots for presentation. Controllers handle input, UI, and server calls without editing authoritative values. [UIController](src/client/Controllers/UIController.luau) finds tagged interface elements instead of depending on one fixed hierarchy. Trove manages long lived connections and objects.
 
 ## Architecture at a glance
 
@@ -71,7 +71,7 @@ For a focused review, these files show the main design decisions:
 | [WeaponService](src/server/Services/WeaponService.luau) and [WeaponMath](src/shared/Domain/WeaponMath.luau) | Request validation, firing limits, server raycasts, and combat calculations. |
 | [Progression](src/shared/Domain/Progression.luau) and [ProgressionService](src/server/Services/ProgressionService.luau) | Cost formulas, purchase checks, upgrade values, and rebirth behavior. |
 | [PlayerRepository](src/server/Persistence/PlayerRepository.luau) and [Migrations](src/server/Persistence/Migrations.luau) | Session based persistence, schema changes, and Studio mock data. |
-| [TestEZ specs](tests) | Coverage for planning, progression, weapon math, race state, request budgets, renderer geometry, and migrations. |
+| [TestEZ specs](tests) | Coverage for planning, progression, weapon math, race and receipt flows, request budgets, renderer geometry, client state, and migrations. |
 
 ## Working with the project
 
@@ -91,26 +91,25 @@ Build the game source:
 rojo build default.project.json --output GunRunner.rbxlx
 ```
 
-The [GitHub Actions workflow](.github/workflows/ci.yml) installs packages, checks formatting and linting, and builds the game source and test project on pushes and pull requests.
+The [source checks workflow](.github/workflows/ci.yml) installs packages, checks formatting and linting, and builds the game source and test project on pushes and pull requests. Its badge covers those checks only.
 
 ### Tests
 
-The [TestEZ specs](tests) exercise the game rules separately from the normal game bootstrap. `test.project.json` maps the shared and server domain modules, the specs, and the TestEZ dev package into a small Studio test project. `testez.yml` supplies Selene with TestEZ's test globals. Neither TestEZ nor the test runner is mapped into the normal game project.
+The [TestEZ specs](tests) exercise domain rules and selected service flows separately from the normal game bootstrap. `test.project.json` maps the shared modules, client state, server domain, persistence, services, specs, and TestEZ dev package into a small Studio test project. `testez.yml` supplies Selene with TestEZ's test globals. Neither TestEZ nor the test runner is mapped into the normal game project.
 
 ```sh
 rojo build test.project.json --output GunRunnerTests.rbxlx
 ```
 
-Open `GunRunnerTests.rbxlx` in Studio, start a play test, and check Output for the TestEZ result. On Windows, Studio's command-line `RunScript` task can execute the same specs directly against the built test place:
+Open `GunRunnerTests.rbxlx` in Studio, start a play test, and check Output for the TestEZ result. On Windows, the checked-in runner builds the test place, runs TestEZ in Studio, and fails if the passing result is missing:
 
 ```powershell
-$studio = (Get-ChildItem "$env:LOCALAPPDATA\Roblox\Versions\*\RobloxStudioBeta.exe" | Sort-Object LastWriteTime -Descending | Select-Object -First 1).FullName
-$place = (Resolve-Path .\GunRunnerTests.rbxlx).Path
-$runner = (Resolve-Path .\tests\RunInStudio.luau).Path
-& $studio --task RunScript --localPlaceFile $place --runScriptFile $runner --outputFile (Join-Path $env:TEMP 'GunRunnerTests.log') --quitAfterExecution
+.\tests\RunStudioTests.ps1
 ```
 
-A passing run prints `GUN_RUNNER_TESTS_PASS` and the TestEZ summary. CI verifies that the test project builds; it does not launch Studio.
+A passing run prints `GUN_RUNNER_TESTS_PASS` and the TestEZ summary. The GitHub hosted source checks do not launch Studio; the Studio suite runs through the script above.
+
+Service-flow specs use controlled profiles and characters to cover receipt retry, save confirmation, and race payout. They do not simulate real player networking, physical touch events, or live Roblox commerce. Those behaviors need Studio play tests and live monitoring.
 
 The [server bootstrap smoke script](tests/RunServerBootstrapInStudio.luau) can be run with the same Studio command against the built game place to check that all server services initialize together. It prints `GUN_RUNNER_SERVER_BOOTSTRAP_PASS` when startup succeeds.
 

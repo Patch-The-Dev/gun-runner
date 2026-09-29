@@ -37,20 +37,39 @@ local DEFAULT_RACE: RaceSnapshot = {
 local ClientStore = {}
 ClientStore.__index = ClientStore
 
-local function cloneState(state: ClientState): ClientState
-	return {
-		Profile = state.Profile,
-		Race = state.Race,
-	}
+local function freezeProfile(profile: PlayerSnapshot): PlayerSnapshot
+	return table.freeze({
+		Currencies = table.freeze(table.clone(profile.Currencies)),
+		Rebirths = profile.Rebirths,
+		Upgrades = table.freeze(table.clone(profile.Upgrades)),
+		Weapons = table.freeze({
+			Owned = table.freeze(table.clone(profile.Weapons.Owned)),
+			Equipped = profile.Weapons.Equipped,
+		}),
+		Entitlements = table.freeze(table.clone(profile.Entitlements)),
+	})
+end
+
+local function freezeRace(race: RaceSnapshot): RaceSnapshot
+	return table.freeze({
+		State = race.State,
+		RunCash = race.RunCash,
+		RunTargets = race.RunTargets,
+		TargetsCollected = race.TargetsCollected,
+		FinishMultiplier = race.FinishMultiplier,
+		Direction = race.Direction,
+		Weapon = if race.Weapon ~= nil then table.freeze(table.clone(race.Weapon)) else nil,
+	})
+end
+
+local function freezeState(profile: PlayerSnapshot?, race: RaceSnapshot): ClientState
+	return table.freeze({ Profile = profile, Race = race })
 end
 
 function ClientStore.new(): ClientStore
 	local self = setmetatable({
 		Changed = Signal.new(),
-		_state = {
-			Profile = nil,
-			Race = DEFAULT_RACE,
-		},
+		_state = freezeState(nil, freezeRace(DEFAULT_RACE)),
 	}, ClientStore)
 	return self :: ClientStore
 end
@@ -60,19 +79,13 @@ function ClientStore:getState(): ClientState
 end
 
 function ClientStore:setProfile(profile: PlayerSnapshot)
-	self._state = {
-		Profile = profile,
-		Race = self._state.Race,
-	}
-	self.Changed:Fire(cloneState(self._state))
+	self._state = freezeState(freezeProfile(profile), self._state.Race)
+	self.Changed:Fire(self._state)
 end
 
 function ClientStore:setRace(race: RaceSnapshot)
-	self._state = {
-		Profile = self._state.Profile,
-		Race = race,
-	}
-	self.Changed:Fire(cloneState(self._state))
+	self._state = freezeState(self._state.Profile, freezeRace(race))
+	self.Changed:Fire(self._state)
 end
 
 function ClientStore:destroy()

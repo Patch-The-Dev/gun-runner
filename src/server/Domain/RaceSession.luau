@@ -34,6 +34,8 @@ export type RaceSession = typeof(setmetatable(
 		LastObservedPosition: Vector3,
 		LastObservedAt: number,
 		InvalidMovement: boolean,
+		InvalidReason: string?,
+		MaxObservedSpeed: number,
 	},
 	RaceSession
 ))
@@ -95,6 +97,8 @@ function RaceSession.new(
 		LastObservedPosition = startPosition,
 		LastObservedAt = now,
 		InvalidMovement = false,
+		InvalidReason = nil,
+		MaxObservedSpeed = 0,
 	}, RaceSession)
 end
 
@@ -108,6 +112,7 @@ function RaceSession:observePosition(position: Vector3, now: number?): boolean
 	end
 	if not isFiniteVector3(position) then
 		self.InvalidMovement = true
+		self.InvalidReason = "non_finite_position"
 		return false
 	end
 	local observedAt = now or os.clock()
@@ -120,11 +125,15 @@ function RaceSession:observePosition(position: Vector3, now: number?): boolean
 			+ TrackConfig.PositionSampleSlack
 	then
 		self.InvalidMovement = true
+		self.InvalidReason = "horizontal_speed"
+		self.MaxObservedSpeed =
+			math.max(self.MaxObservedSpeed, horizontalDistance / math.max(elapsed, 0.001))
 		return false
 	end
 	if elapsed < TrackConfig.PositionSampleInterval then
 		return true
 	end
+	self.MaxObservedSpeed = math.max(self.MaxObservedSpeed, horizontalDistance / elapsed)
 	self.LastObservedPosition = position
 	self.LastObservedAt = observedAt
 	return true
