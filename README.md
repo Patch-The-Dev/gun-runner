@@ -115,6 +115,8 @@ On Windows with Studio installed and signed in:
 
 The isolated fixtures use mock data stores and do not publish or modify a live place. Runtime reports identify the commit, dirty working tree state, finish time, suite totals, and status. Skipped tests, missing results, and timeouts fail the runner. Commerce specs exercise the receipt protocol without creating a real purchase.
 
+The [recorded local Studio run](docs/validation.json) passed **51 unit checks**, the **server bootstrap**, and **14 multiplayer checks** from a clean source commit. The report identifies that commit and its completion time. The Studio workflow generates a fresh report for each automated run.
+
 The [Studio runtime workflow](.github/workflows/studio.yml) runs the same command after successful source checks for trusted `main` pushes, once a dedicated Windows runner is enabled. Forks and pull requests do not run on that signed-in machine. See [Studio CI setup](docs/STUDIO_CI.md). A skipped Studio job does not count as a passing runtime test.
 
 The [architecture](docs/architecture.md), [security notes](docs/security.md), [world contract](docs/world-contract.md), and [source layout](docs/source-layout.md) cover the design in more detail. [ProductConfig](src/shared/Config/ProductConfig.luau) contains product and game pass IDs for the live experience.
