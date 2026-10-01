@@ -16,7 +16,7 @@ export type ClientState = {
 }
 
 export type ClientStore = {
-	Changed: Signal.Signal<ClientState>,
+	Changed: typeof(Signal.new()),
 	_state: ClientState,
 	getState: (self: ClientStore) -> ClientState,
 	setProfile: (self: ClientStore, profile: PlayerSnapshot) -> (),
@@ -71,24 +71,24 @@ function ClientStore.new(): ClientStore
 		Changed = Signal.new(),
 		_state = freezeState(nil, freezeRace(DEFAULT_RACE)),
 	}, ClientStore)
-	return self :: ClientStore
+	return (self :: unknown) :: ClientStore
 end
 
-function ClientStore:getState(): ClientState
+function ClientStore.getState(self: ClientStore): ClientState
 	return self._state
 end
 
-function ClientStore:setProfile(profile: PlayerSnapshot)
+function ClientStore.setProfile(self: ClientStore, profile: PlayerSnapshot)
 	self._state = freezeState(freezeProfile(profile), self._state.Race)
 	self.Changed:Fire(self._state)
 end
 
-function ClientStore:setRace(race: RaceSnapshot)
+function ClientStore.setRace(self: ClientStore, race: RaceSnapshot)
 	self._state = freezeState(self._state.Profile, freezeRace(race))
 	self.Changed:Fire(self._state)
 end
 
-function ClientStore:destroy()
+function ClientStore.destroy(self: ClientStore)
 	self.Changed:Destroy()
 end
 

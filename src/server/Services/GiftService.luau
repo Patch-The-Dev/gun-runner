@@ -5,6 +5,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Knit = require(ReplicatedStorage.Packages.Knit)
 
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
+local GiftReward = require(script.Parent.Parent.Domain.GiftReward)
 local Progression = require(ReplicatedStorage.Shared.Domain.Progression)
 
 local GiftService = Knit.CreateService({ Name = "GiftService", Client = {} })
@@ -12,7 +13,6 @@ local GiftService = Knit.CreateService({ Name = "GiftService", Client = {} })
 function GiftService:KnitInit()
 	self._requests = Knit.GetService("RequestGateService")
 	self._data = Knit.GetService("DataService")
-	self._economy = Knit.GetService("EconomyService")
 end
 
 function GiftService:GetStatus(player: Player)
@@ -63,15 +63,13 @@ function GiftService:Claim(player: Player)
 			* Progression.getRebirthTargetMultiplier(data.Rebirths)
 			* session.Entitlements.TargetMultiplier
 	)
-	if not self._economy:Award(player, "Cash", cashReward, false) then
+	if not GiftReward.apply(data, cashReward, targetReward, now) then
 		return { ok = false, error = "award_failed" }
 	end
-	if not self._economy:Award(player, "Targets", targetReward, false) then
-		return { ok = false, error = "award_failed" }
+	local published, publishError = pcall(self._data.PublishSnapshot, self._data, player)
+	if not published then
+		warn(`Gift notification failed: {tostring(publishError)}`)
 	end
-
-	data.Gift.LastClaimAt = now
-	self._data:PublishSnapshot(player)
 	return { ok = true, cash = cashReward, targets = targetReward }
 end
 

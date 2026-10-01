@@ -5,9 +5,6 @@
     "GlobalUsedAsLocal": true,
     "LocalShadow": true,
     "SameLineStatement": true,
-    "UninitializedLocal": true,
-    "UnusedFunction": true,
-    "UnusedLocal": true,
-    "UnusedVariable": true
+    "UninitializedLocal": true
   }
 }

@@ -217,7 +217,7 @@ function Migrations.apply(rawData: MutableData): PlayerData
 	end
 	rawData.ProcessedReceipts = receipts
 	rawData.SchemaVersion = version
-	return rawData :: PlayerData
+	return (rawData :: unknown) :: PlayerData
 end
 
 return table.freeze(Migrations)

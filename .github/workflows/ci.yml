@@ -2,26 +2,29 @@ name: Source checks
 
 on:
   push:
+    branches: [main]
   pull_request:
 
 permissions:
   contents: read
 
 jobs:
-  verify:
+  validate:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - name: Setup Rokit
-        uses: paradoxum-games/setup-rokit@v3
+      - name: Install pinned tools
+        uses: paradoxum-games/setup-rokit@29e6ee09651a3711e3a287a1037671d7b74db6d0 # v3
         with:
           version: 1.2.0
           cache: true
 
-      - name: Install Wally packages
-        run: wally install
+      - name: Install packages and verify lockfile
+        run: |
+          wally install
+          git diff --exit-code -- wally.lock
 
       - name: Check formatting
         run: stylua --check src tests
@@ -29,8 +32,16 @@ jobs:
       - name: Lint
         run: selene src tests
 
-      - name: Build game and test places
+      - name: Type check all runtime source
         run: |
-          mkdir -p build
-          rojo build default.project.json --output build/GunRunner.rbxlx
-          rojo build test.project.json --output build/GunRunnerTests.rbxlx
+          rojo sourcemap default.project.json --include-non-scripts -o sourcemap.json
+          curl -fsSL https://raw.githubusercontent.com/JohnnyMorganz/luau-lsp/1.70.0/scripts/globalTypes.d.luau -o "$RUNNER_TEMP/robloxTypes.d.luau"
+          echo "2b0df788dc3fd1b572e71ee7fe9e1c55cc23882afbd5024aecdec30d9bd7520f  $RUNNER_TEMP/robloxTypes.d.luau" | sha256sum --check
+          luau-lsp analyze --platform roblox --sourcemap sourcemap.json \
+            --definitions "@roblox=$RUNNER_TEMP/robloxTypes.d.luau" src
+
+      - name: Build game, unit, and multiplayer projects
+        run: |
+          rojo build default.project.json -o GunRunner.rbxlx
+          rojo build test.project.json -o GunRunnerTests.rbxlx
+          rojo build integration.project.json -o GunRunnerIntegrationTests.rbxlx

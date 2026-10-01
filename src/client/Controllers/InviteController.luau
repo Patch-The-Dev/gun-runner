@@ -4,7 +4,8 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local SocialService = game:GetService("SocialService")
 
-local Knit = require(ReplicatedStorage.Packages.Knit)
+local CommonTypes = require(ReplicatedStorage.Shared.Types.Common)
+local Knit = require(script.Parent.Parent.KnitClient)
 local Promise = require(ReplicatedStorage.Packages.Promise)
 
 local LOCAL_PLAYER = Players.LocalPlayer
@@ -21,7 +22,8 @@ function InviteController:PromptInvite()
 			return
 		end
 		if not canInvite then
-			resolve({ ok = false, error = "invite_unavailable" })
+			local result: CommonTypes.ActionResult = { ok = false, error = "invite_unavailable" }
+			resolve(result)
 			return
 		end
 
@@ -33,7 +35,8 @@ function InviteController:PromptInvite()
 			return
 		end
 
-		resolve({ ok = true })
+		local result: CommonTypes.ActionResult = { ok = true }
+		resolve(result)
 	end)
 end
 

@@ -189,7 +189,7 @@ function WeaponService:FireWeapon(player: Player, direction: Vector3): boolean
 
 	local character = player.Character
 	local root = if character ~= nil then character:FindFirstChild("HumanoidRootPart") else nil
-	if root == nil or not root:IsA("BasePart") then
+	if character == nil or root == nil or not root:IsA("BasePart") then
 		return false
 	end
 	if not self._race:ValidateCharacterPosition(player) then

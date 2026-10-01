@@ -1,26 +1,27 @@
 --!strict
 
-export type RateLimiter = {
-	allow: (
-		self: RateLimiter,
-		key: string | number,
-		intervalSeconds: number,
-		now: number?
-	) -> boolean,
-	clear: (self: RateLimiter, key: string | number) -> (),
-	clearAll: (self: RateLimiter) -> (),
-}
-
 local RateLimiter = {}
 RateLimiter.__index = RateLimiter
+
+export type RateLimiter = typeof(setmetatable(
+	{} :: {
+		_lastSeen: { [string | number]: number },
+	},
+	{} :: typeof(RateLimiter)
+))
 
 function RateLimiter.new(): RateLimiter
 	return setmetatable({
 		_lastSeen = {} :: { [string | number]: number },
-	}, RateLimiter) :: RateLimiter
+	}, RateLimiter)
 end
 
-function RateLimiter:allow(key: string | number, intervalSeconds: number, now: number?): boolean
+function RateLimiter.allow(
+	self: RateLimiter,
+	key: string | number,
+	intervalSeconds: number,
+	now: number?
+): boolean
 	assert(intervalSeconds >= 0, "intervalSeconds must be non-negative")
 	local timestamp = now or os.clock()
 	local previous = self._lastSeen[key]
@@ -31,11 +32,11 @@ function RateLimiter:allow(key: string | number, intervalSeconds: number, now: n
 	return true
 end
 
-function RateLimiter:clear(key: string | number)
+function RateLimiter.clear(self: RateLimiter, key: string | number)
 	self._lastSeen[key] = nil
 end
 
-function RateLimiter:clearAll()
+function RateLimiter.clearAll(self: RateLimiter)
 	table.clear(self._lastSeen)
 end
 

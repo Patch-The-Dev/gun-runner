@@ -8,6 +8,8 @@ return table.freeze({
 	ChestCooldownSeconds = 5 * 60,
 	InvitePromptCashMultiplier = 2,
 	ReceiptRetentionSeconds = 90 * 24 * 60 * 60,
+	ReceiptConfirmationSeconds = 12,
+	ShutdownWaitSeconds = 25,
 	MaxProcessedReceipts = 250,
 	TouchDebounceSeconds = 0.35,
 	WeaponAimToleranceDegrees = 12,

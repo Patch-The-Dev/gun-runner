@@ -70,6 +70,7 @@ return function()
 			race.StartedAt = os.clock() - 3
 			race.LastCheckpointAt = race.StartedAt
 			race.LastObservedAt = race.StartedAt
+			race.WindowStartedAt = race.StartedAt
 			race:addCash(10)
 			race:addTargets(5)
 			root.Position = Vector3.new(0, 0, 28)
@@ -81,6 +82,7 @@ return function()
 
 			race.LastCheckpointAt = os.clock() - 1
 			race.LastObservedAt = race.LastCheckpointAt
+			race.WindowStartedAt = race.LastCheckpointAt
 			root.Position = Vector3.new(0, 0, 56)
 			local finish = Instance.new("Part")
 			finish.Position = root.Position

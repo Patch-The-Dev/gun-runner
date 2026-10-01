@@ -41,3 +41,11 @@ A future schema version causes an explicit load error rather than silently downg
 ## Social prompt bonus
 
 The invite-session bonus is activated from the server-observed `SocialService.GameInvitePromptClosed` event. There is no client endpoint that directly grants the bonus. Roblox does not expose proof that a recipient accepted an invite, so the bonus intentionally represents completing the prompt flow rather than a verified referral.
+
+## Movement window and confirmation deadlines
+
+Movement validation checks each sample and a rolling time window. Horizontal, ascent, and descent bounds reject an implausible destination without adopting it as trusted history. `TrackConfig` contains the speed limits, sampling slack, and window duration; production cancellation analytics should inform changes to these values.
+
+Receipt callbacks have a save-confirmation deadline. A missing save event cannot hold the callback indefinitely or cause an unconfirmed grant to be acknowledged. Profile initialization and shutdown release sessions acquired during failures or late completion.
+
+Gift claims validate both final balances and the cooldown before a synchronous commit. Currency overflow, non-finite values, invalid rewards, and duplicate claims leave the transaction untouched.

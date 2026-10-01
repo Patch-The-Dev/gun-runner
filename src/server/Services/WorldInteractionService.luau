@@ -103,7 +103,7 @@ function WorldInteractionService:_allowTouch(player: Player, instance: Instance)
 	local now = os.clock()
 	local playerTouches = self._touches[player]
 	if playerTouches == nil then
-		playerTouches = setmetatable({}, { __mode = "k" }) :: { [Instance]: number }
+		playerTouches = setmetatable({} :: { [Instance]: number }, { __mode = "k" })
 		self._touches[player] = playerTouches
 	end
 	local previous = playerTouches[instance]

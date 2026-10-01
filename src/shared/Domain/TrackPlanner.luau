@@ -1,5 +1,6 @@
 --!strict
 
+local CommonTypes = require(script.Parent.Parent.Types.Common)
 local RaceTypes = require(script.Parent.Parent.Types.Race)
 local TrackConfig = require(script.Parent.Parent.Config.TrackConfig)
 
@@ -32,7 +33,8 @@ local function buildGate(
 	id: string,
 	lane: number
 ): GateSpec
-	local stat = TrackConfig.GateStats[random:NextInteger(1, #TrackConfig.GateStats)]
+	local stat: CommonTypes.GateStat =
+		TrackConfig.GateStats[random:NextInteger(1, #TrackConfig.GateStats)] :: CommonTypes.GateStat
 	local rawMagnitude = random:NextNumber(0.5, 2) * math.max(1, settings.BoosterStrength / 10)
 	local magnitude =
 		math.clamp(rawMagnitude, TrackConfig.MinimumGateDelta, TrackConfig.MaximumGateDelta)

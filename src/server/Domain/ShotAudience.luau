@@ -21,7 +21,7 @@ function ShotAudience.new(): ShotAudience
 	return setmetatable({ _cells = {} }, ShotAudience)
 end
 
-function ShotAudience:rebuild(positions: { [Player]: Vector3 })
+function ShotAudience.rebuild(self: ShotAudience, positions: { [Player]: Vector3 })
 	local cells: { [string]: { Player } } = {}
 	for player, position in positions do
 		local x = math.floor(position.X / CELL_SIZE)
@@ -37,15 +37,18 @@ function ShotAudience:rebuild(positions: { [Player]: Vector3 })
 	self._cells = cells
 end
 
-function ShotAudience:near(origin: Vector3, radius: number): { Player }
+function ShotAudience.near(self: ShotAudience, origin: Vector3, radius: number): { Player }
 	local viewers: { Player } = {}
 	local centerX = math.floor(origin.X / CELL_SIZE)
 	local centerZ = math.floor(origin.Z / CELL_SIZE)
 	local cellRadius = math.ceil((radius + MOVEMENT_MARGIN) / CELL_SIZE)
 	for x = centerX - cellRadius, centerX + cellRadius do
 		for z = centerZ - cellRadius, centerZ + cellRadius do
-			for _, player in self._cells[cellKey(x, z)] or {} do
-				table.insert(viewers, player)
+			local cell = self._cells[cellKey(x, z)]
+			if cell ~= nil then
+				for _, player in cell do
+					table.insert(viewers, player)
+				end
 			end
 		end
 	end

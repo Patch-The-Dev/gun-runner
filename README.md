@@ -32,19 +32,19 @@ The upgrade configuration changes track length, finish length, booster strength,
 
 The client supplies an aiming direction, not a hit or damage value. [WeaponService](src/server/Services/WeaponService.luau) checks the payload, keeps aim within a narrow cone around the run direction, limits firing cadence, chooses the firing origin from the player's character, and performs the raycast. Weapon damage, range, and fire rate come from [WeaponConfig](src/shared/Config/WeaponConfig.luau). The shared [network contract](src/shared/Network/Contract.luau) validates structured requests at the server boundary.
 
-[RaceService](src/server/Services/RaceService.luau) owns active runs and rewards. Its [RaceSession](src/server/Domain/RaceSession.luau) tracks checkpoint order and one time claims for targets, gates, obstacles, and pillars. Checkpoints and touch objects require the character to be nearby, in the current segment, and far enough into the run to reach them. The server samples position during the run and again when the character fires or touches an object, cancelling runs with implausible jumps. Finish validation also enforces a track-based minimum time. These are server-side plausibility checks for client-controlled character movement; they do not prove every movement was legitimate.
+[RaceService](src/server/Services/RaceService.luau) owns active runs and rewards. Its [RaceSession](src/server/Domain/RaceSession.luau) tracks checkpoint order and one time claims for targets, gates, obstacles, and pillars. Checkpoints and touch objects require the character to be nearby, in the current segment, and far enough into the run to reach them. The server samples position during the run and again when the character fires or touches an object, cancelling runs with implausible horizontal or vertical jumps. A rolling window prevents repeated samples from spending the position slack on every update. Ascent, descent, and horizontal thresholds live in `TrackConfig` for tuning against measured gameplay. Finish validation also enforces a track-based minimum time. These are server-side plausibility checks for client-controlled character movement; they do not prove every movement was legitimate.
 
 [RequestGateService](src/server/Services/RequestGateService.luau) applies per-player budgets to snapshot, purchase, gift, and fire requests. Shot events reach nearby players through a spatial audience index. The client [tracer renderer](src/client/Systems/ShotTracer.luau) reuses a fixed pool of parts to bound visual object churn.
 
 ### Progression, economy, and purchases
 
-The ten upgrades in [ProgressionConfig](src/shared/Config/ProgressionConfig.luau) cover rewards, track layout, and obstacle frequency. [ProgressionService](src/server/Services/ProgressionService.luau) calculates costs, checks purchases, and applies rebirth rules. The five weapons run from the starting Revolver to the Railgun; buying and equipping are checked against the saved profile and current race state. [EconomyService](src/server/Services/EconomyService.luau) is the single service that changes currency balances.
+The ten upgrades in [ProgressionConfig](src/shared/Config/ProgressionConfig.luau) cover rewards, track layout, and obstacle frequency. [ProgressionService](src/server/Services/ProgressionService.luau) calculates costs, checks purchases, and applies rebirth rules. The five weapons run from the starting Revolver to the Railgun; buying and equipping are checked against the saved profile and current race state. [EconomyService](src/server/Services/EconomyService.luau) handles ordinary currency awards and spending. Timed gifts use a dedicated transaction that validates both resulting balances before changing either currency or the claim cooldown.
 
-[GiftService](src/server/Services/GiftService.luau) handles timed claims. [InviteService](src/server/Services/InviteService.luau) awards its bonus from a server observed invite prompt event. [EntitlementService](src/server/Services/EntitlementService.luau) resolves game pass ownership into effects used by the rest of the game, retrying failed lookups while preserving verified results. Developer products go through [MonetizationService](src/server/Services/MonetizationService.luau): a purchase ID is recorded in the profile, and the receipt is acknowledged only after that record has been saved.
+[GiftService](src/server/Services/GiftService.luau) handles timed claims through [GiftReward](src/server/Domain/GiftReward.luau), a synchronous transaction with no yielding service calls. [InviteService](src/server/Services/InviteService.luau) awards its bonus from a server observed invite prompt event. [EntitlementService](src/server/Services/EntitlementService.luau) resolves game pass ownership into effects used by the rest of the game, retrying failed lookups while preserving verified results. Developer products go through [MonetizationService](src/server/Services/MonetizationService.luau): a purchase ID is recorded in the profile, and the receipt is acknowledged only after that record has been saved.
 
 ### Data and client presentation
 
-[PlayerRepository](src/server/Persistence/PlayerRepository.luau) contains the ProfileStore integration, while [PlayerSession](src/server/Domain/PlayerSession.luau) owns the loaded profile during play. Saved data has a versioned template and [migrations](src/server/Persistence/Migrations.luau) for older records. The load boundary also checks current-version values against configured upgrade limits. Studio uses ProfileStore's mock store.
+[PlayerRepository](src/server/Persistence/PlayerRepository.luau) contains the ProfileStore integration, while [PlayerSession](src/server/Domain/PlayerSession.luau) owns the loaded profile during play. Saved data has a versioned template and [migrations](src/server/Persistence/Migrations.luau) for older records. The load boundary also checks current-version values against configured upgrade limits. Initialization failures release acquired sessions. Shutdown cancels pending acquisitions and waits within one deadline; any late acquisition releases itself instead of registering a new session. Receipt confirmation has a bounded deadline and removes its save/session listeners on completion, failure, or cancellation. An unconfirmed receipt stays eligible for a later Roblox retry. Studio uses ProfileStore's mock store.
 
 On the client, [ClientStore](src/client/State/ClientStore.luau) owns copied, frozen snapshots for presentation. Controllers handle input, UI, and server calls without editing authoritative values. [UIController](src/client/Controllers/UIController.luau) finds tagged interface elements instead of depending on one fixed hierarchy. Trove manages long lived connections and objects.
 
@@ -75,7 +75,7 @@ For a focused review, these files show the main design decisions:
 
 ## Working with the project
 
-The toolchain is **Rojo** for source sync and place builds, **Rokit** for pinned tools, **Wally** for packages, **StyLua** for formatting, and **Selene** for linting. Knit, ProfileStore, Trove, and `t` supply the service framework, persistence, cleanup, and request validation. Git tracks the source and configuration.
+The toolchain is **Rojo** for source sync and place builds, **Rokit** for pinned tools, **Wally** for packages, **StyLua** for formatting, **Selene** for linting, and **Luau LSP** for full runtime type analysis. Knit, ProfileStore, Trove, and `t` supply the service framework, persistence, cleanup, and request validation. Git tracks the source and configuration.
 
 Install the pinned tools and packages, then connect a Studio place through the Rojo plugin:
 
@@ -91,27 +91,31 @@ Build the game source:
 rojo build default.project.json --output GunRunner.rbxlx
 ```
 
-The [source checks workflow](.github/workflows/ci.yml) installs packages, checks formatting and linting, and builds the game source and test project on pushes and pull requests. Its badge covers those checks only.
+The [source checks workflow](.github/workflows/ci.yml) verifies the package lock, formatting, lint, all runtime source with Luau analysis, and the game, unit, and multiplayer Rojo builds. Tool versions, Actions, and Roblox type definitions are pinned. The source badge covers those checks.
 
-### Tests
+### Runtime tests
 
-The [TestEZ specs](tests) exercise domain rules and selected service flows separately from the normal game bootstrap. `test.project.json` maps the shared modules, client state, server domain, persistence, services, specs, and TestEZ dev package into a small Studio test project. `testez.yml` supplies Selene with TestEZ's test globals. Neither TestEZ nor the test runner is mapped into the normal game project.
+[TestEZ specs](tests) cover generation, progression, weapon math, race rewards, bounded movement, receipt confirmation, initialization cleanup, pending-load shutdown, request budgets, atomic gifts, client state, and migrations. TestEZ and the test scripts are excluded from the normal project.
 
-```sh
-rojo build test.project.json --output GunRunnerTests.rbxlx
-```
-
-Open `GunRunnerTests.rbxlx` in Studio, start a play test, and check Output for the TestEZ result. On Windows, the checked-in runner builds the test place, runs TestEZ in Studio, and fails if the passing result is missing:
+On Windows with Studio installed and signed in:
 
 ```powershell
-.\tests\RunStudioTests.ps1
+./tests/RunStudioTests.ps1 -ReportPath "$env:TEMP/gun-runner-runtime.json"
+# Select a suite when investigating a failure:
+./tests/RunStudioTests.ps1 -Suite Unit
+./tests/RunStudioTests.ps1 -Suite Bootstrap
+./tests/RunStudioTests.ps1 -Suite Integration
 ```
 
-A passing run prints `GUN_RUNNER_TESTS_PASS` and the TestEZ summary. The GitHub hosted source checks do not launch Studio; the Studio suite runs through the script above.
+| Suite | Execution |
+| --- | --- |
+| Unit | Domain rules and controlled service flows, including initialization failures, pending loads, receipt save failure and timeout, invalid gift rewards, and rolling movement bounds. |
+| Bootstrap | All server services initialize together with the pinned packages. |
+| Multiplayer | Two actual Studio clients run the production entrypoints and remote service calls. Checks controller startup, profile loading, replicated gift snapshots, atomic gift payout, duplicate claim rejection, profile isolation, malformed shot rejection, and saved receipt confirmation through mock ProfileStore. Unhandled application errors fail the suite on both clients and the server. |
 
-Service-flow specs use controlled profiles and characters to cover receipt retry, save confirmation, and race payout. They do not simulate real player networking, physical touch events, or live Roblox commerce. Those behaviors need Studio play tests and live monitoring.
+The isolated fixtures use mock data stores and do not publish or modify a live place. Runtime reports identify the commit, dirty working tree state, finish time, suite totals, and status. Skipped tests, missing results, and timeouts fail the runner. Commerce specs exercise the receipt protocol without creating a real purchase.
 
-The [server bootstrap smoke script](tests/RunServerBootstrapInStudio.luau) can be run with the same Studio command against the built game place to check that all server services initialize together. It prints `GUN_RUNNER_SERVER_BOOTSTRAP_PASS` when startup succeeds.
+The [Studio runtime workflow](.github/workflows/studio.yml) runs the same command after successful source checks for trusted `main` pushes, once a dedicated Windows runner is enabled. Forks and pull requests do not run on that signed-in machine. See [Studio CI setup](docs/STUDIO_CI.md). A skipped Studio job does not count as a passing runtime test.
 
 The [architecture](docs/architecture.md), [security notes](docs/security.md), [world contract](docs/world-contract.md), and [source layout](docs/source-layout.md) cover the design in more detail. [ProductConfig](src/shared/Config/ProductConfig.luau) contains product and game pass IDs for the live experience.
 

@@ -3,7 +3,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
-local Knit = require(ReplicatedStorage.Packages.Knit)
+local Knit = require(script.Parent.Parent.KnitClient)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 
 local ShotTracer = require(script.Parent.Parent.Systems.ShotTracer)

@@ -103,7 +103,7 @@ function EntitlementService:_load(player: Player, force: boolean?)
 						player.Name
 					)
 				)
-				resolve({ Id = gamePassId, Success = false })
+				resolve({ Id = gamePassId, Success = false, Owns = false })
 			end)
 		)
 	end

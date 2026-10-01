@@ -15,16 +15,17 @@ local nextSlot = 1
 local function acquireTracer(): (Part, number)
 	local slot = nextSlot
 	nextSlot = (slot % MAX_TRACERS) + 1
-	local tracer = pool[slot]
+	local tracer: Part? = pool[slot]
 	if tracer == nil then
-		tracer = Instance.new("Part")
-		tracer.Name = "ShotTracer"
-		tracer.Anchored = true
-		tracer.CanCollide = false
-		tracer.CanQuery = false
-		tracer.CanTouch = false
-		tracer.Material = Enum.Material.Neon
-		pool[slot] = tracer
+		local created = Instance.new("Part")
+		created.Name = "ShotTracer"
+		created.Anchored = true
+		created.CanCollide = false
+		created.CanQuery = false
+		created.CanTouch = false
+		created.Material = Enum.Material.Neon
+		pool[slot] = created
+		return created, slot
 	end
 	return tracer, slot
 end

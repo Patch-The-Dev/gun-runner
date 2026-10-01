@@ -3,7 +3,7 @@
 local CollectionService = game:GetService("CollectionService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local Knit = require(ReplicatedStorage.Packages.Knit)
+local Knit = require(script.Parent.Parent.KnitClient)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 
 local MoneyFormatter = require(ReplicatedStorage.Shared.Domain.MoneyFormatter)

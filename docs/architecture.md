@@ -76,3 +76,15 @@ Promise is limited to operations that are actually asynchronous, such as Profile
 ## World integration
 
 The code discovers Studio map behavior using CollectionService tags and attributes. See `world-contract.md`.
+
+## Persistence completion and shutdown
+
+Profile acquisition tracks the pending load through initialization and subscription setup. Any exception after acquisition releases the active session. Shutdown closes the repository to new loads, cancels pending acquisitions, releases registered sessions, and waits within one deadline. Late acquisitions also observe the closed state and release themselves.
+
+Receipt save confirmation waits at most `GameConfig.ReceiptConfirmationSeconds`. Saved receipt data is the success condition. Session end, save failure, cancellation, and timeout disconnect listeners and return an unconfirmed result so the receipt can be retried.
+
+Timed gifts use `GiftReward.apply` to validate and commit both currencies and the cooldown without yielding. A bad amount, overflow, or active cooldown changes none of those values. Snapshot delivery happens after the committed transaction.
+
+## Verification
+
+CI analyzes all runtime source without excluded service directories. The Studio runner executes TestEZ, a combined server bootstrap, and two-client integration against the production entrypoints. See [Studio CI](STUDIO_CI.md) for the optional dedicated runner and JSON reports.

@@ -7,6 +7,7 @@ local Knit = require(ReplicatedStorage.Packages.Knit)
 local Signal = require(ReplicatedStorage.Packages.Signal)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 
+local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 local PlayerDataTypes = require(ReplicatedStorage.Shared.Types.PlayerData)
 local PlayerRepository = require(script.Parent.Parent.Persistence.PlayerRepository)
 local PlayerSession = require(script.Parent.Parent.Domain.PlayerSession)
@@ -31,6 +32,7 @@ function DataService:KnitInit()
 	self._sessions = {} :: { [Player]: PlayerSessionType }
 	self._loading = {} :: { [Player]: boolean }
 	self._trove = Trove.new()
+	self._closing = false
 end
 
 function DataService:KnitStart()
@@ -46,12 +48,25 @@ function DataService:KnitStart()
 	end
 
 	game:BindToClose(function()
-		self._repository:releaseAll()
+		self._closing = true
+		local deadline = os.clock() + GameConfig.ShutdownWaitSeconds
+		self._repository:beginClose()
+		local cleaned, cleanupError = pcall(function()
+			self._trove:Destroy()
+			return true
+		end)
+		if not cleaned then
+			warn(`Data service cleanup failed: {tostring(cleanupError)}`)
+		end
+		for player in self._sessions do
+			self:_removePlayer(player)
+		end
+		self._repository:close(deadline)
 	end)
 end
 
 function DataService:_loadPlayer(player: Player)
-	if self._sessions[player] ~= nil or self._loading[player] then
+	if self._closing or self._sessions[player] ~= nil or self._loading[player] then
 		return
 	end
 	self._loading[player] = true
@@ -60,7 +75,7 @@ function DataService:_loadPlayer(player: Player)
 		:load(player)
 		:andThen(function(data: PlayerData)
 			self._loading[player] = nil
-			if player.Parent ~= Players then
+			if self._closing or player.Parent ~= Players then
 				self._repository:release(player)
 				return
 			end
@@ -75,20 +90,30 @@ function DataService:_loadPlayer(player: Player)
 		end)
 		:catch(function(message: unknown)
 			self._loading[player] = nil
+			self:_removePlayer(player)
 			warn(string.format("Profile load failed for %s: %s", player.Name, tostring(message)))
-			if player.Parent == Players then
+			if not self._closing and player.Parent == Players then
 				player:Kick("Your data could not be loaded. Please rejoin.")
 			end
 		end)
 end
 
 function DataService:_removePlayer(player: Player)
-	self._loading[player] = nil
 	local session = self._sessions[player]
 	if session ~= nil then
-		self.SessionRemoving:Fire(player, session)
-		session:Destroy()
 		self._sessions[player] = nil
+		local notified, notificationError =
+			pcall(self.SessionRemoving.Fire, self.SessionRemoving, player, session)
+		if not notified then
+			warn(`Session removal notification failed: {tostring(notificationError)}`)
+		end
+		local destroyed, destructionError = pcall(function()
+			session:Destroy()
+			return true
+		end)
+		if not destroyed then
+			warn(`Session cleanup failed: {tostring(destructionError)}`)
+		end
 	end
 	self._repository:release(player)
 end

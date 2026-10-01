@@ -36,6 +36,8 @@ export type RaceSession = typeof(setmetatable(
 		InvalidMovement: boolean,
 		InvalidReason: string?,
 		MaxObservedSpeed: number,
+		WindowPosition: Vector3,
+		WindowStartedAt: number,
 	},
 	RaceSession
 ))
@@ -99,14 +101,16 @@ function RaceSession.new(
 		InvalidMovement = false,
 		InvalidReason = nil,
 		MaxObservedSpeed = 0,
+		WindowPosition = startPosition,
+		WindowStartedAt = now,
 	}, RaceSession)
 end
 
-function RaceSession:elapsed(): number
+function RaceSession.elapsed(self: RaceSession): number
 	return math.max(0, os.clock() - self.StartedAt)
 end
 
-function RaceSession:observePosition(position: Vector3, now: number?): boolean
+function RaceSession.observePosition(self: RaceSession, position: Vector3, now: number?): boolean
 	if self.Finished or self.InvalidMovement then
 		return false
 	end
@@ -117,6 +121,11 @@ function RaceSession:observePosition(position: Vector3, now: number?): boolean
 	end
 	local observedAt = now or os.clock()
 	local elapsed = observedAt - self.LastObservedAt
+	if observedAt ~= observedAt or math.abs(observedAt) == math.huge or elapsed < 0 then
+		self.InvalidMovement = true
+		self.InvalidReason = "invalid_sample_time"
+		return false
+	end
 	local delta = position - self.LastObservedPosition
 	local horizontalDistance = Vector3.new(delta.X, 0, delta.Z).Magnitude
 	if
@@ -130,16 +139,47 @@ function RaceSession:observePosition(position: Vector3, now: number?): boolean
 			math.max(self.MaxObservedSpeed, horizontalDistance / math.max(elapsed, 0.001))
 		return false
 	end
+	local windowElapsed = math.max(0, observedAt - self.WindowStartedAt)
+	local windowDelta = position - self.WindowPosition
+	if
+		Vector3.new(windowDelta.X, 0, windowDelta.Z).Magnitude
+		> TrackConfig.MaxObservedHorizontalSpeed * windowElapsed
+			+ TrackConfig.PositionSampleSlack
+	then
+		self.InvalidMovement = true
+		self.InvalidReason = "rolling_horizontal_speed"
+		return false
+	end
+	local verticalLimit = if delta.Y >= 0
+		then TrackConfig.MaxObservedAscentSpeed
+		else TrackConfig.MaxObservedDescentSpeed
+	local windowVerticalLimit = if windowDelta.Y >= 0
+		then TrackConfig.MaxObservedAscentSpeed
+		else TrackConfig.MaxObservedDescentSpeed
+	if
+		math.abs(delta.Y) > verticalLimit * elapsed + TrackConfig.VerticalSampleSlack
+		or math.abs(windowDelta.Y)
+			> windowVerticalLimit * windowElapsed + TrackConfig.VerticalSampleSlack
+	then
+		self.InvalidMovement = true
+		self.InvalidReason = "vertical_speed"
+		return false
+	end
 	if elapsed < TrackConfig.PositionSampleInterval then
 		return true
 	end
 	self.MaxObservedSpeed = math.max(self.MaxObservedSpeed, horizontalDistance / elapsed)
 	self.LastObservedPosition = position
 	self.LastObservedAt = observedAt
+	if windowElapsed >= TrackConfig.PositionWindowSeconds then
+		self.WindowPosition = position
+		self.WindowStartedAt = observedAt
+	end
 	return true
 end
 
-function RaceSession:canTouchTrackObject(
+function RaceSession.canTouchTrackObject(
+	self: RaceSession,
 	segmentIndex: number,
 	objectPosition: Vector3,
 	characterPosition: Vector3,
@@ -173,7 +213,8 @@ function RaceSession:canTouchTrackObject(
 	return observedAt - self.LastCheckpointAt >= minimumTime
 end
 
-function RaceSession:touchCheckpoint(
+function RaceSession.touchCheckpoint(
+	self: RaceSession,
 	index: number,
 	checkpointPosition: Vector3,
 	characterPosition: Vector3,
@@ -208,7 +249,8 @@ function RaceSession:touchCheckpoint(
 	return true
 end
 
-function RaceSession:canFinish(
+function RaceSession.canFinish(
+	self: RaceSession,
 	minimumElapsedSeconds: number,
 	finishPosition: Vector3,
 	characterPosition: Vector3,
@@ -236,7 +278,7 @@ function RaceSession:canFinish(
 		and observedAt - self.LastCheckpointAt >= minimumSegmentTime
 end
 
-function RaceSession:addCash(amount: number): boolean
+function RaceSession.addCash(self: RaceSession, amount: number): boolean
 	if self.Finished or not isFinitePositive(amount) then
 		return false
 	end
@@ -244,7 +286,7 @@ function RaceSession:addCash(amount: number): boolean
 	return true
 end
 
-function RaceSession:addTargets(amount: number): boolean
+function RaceSession.addTargets(self: RaceSession, amount: number): boolean
 	if self.Finished or not isFinitePositive(amount) then
 		return false
 	end
@@ -252,7 +294,7 @@ function RaceSession:addTargets(amount: number): boolean
 	return true
 end
 
-function RaceSession:consumeTarget(targetId: string, reward: number): boolean
+function RaceSession.consumeTarget(self: RaceSession, targetId: string, reward: number): boolean
 	if self.Finished or self.ClaimedTargets[targetId] or not isFinitePositive(reward) then
 		return false
 	end
@@ -262,7 +304,7 @@ function RaceSession:consumeTarget(targetId: string, reward: number): boolean
 	return true
 end
 
-function RaceSession:consumePillar(pillarId: string, reward: number): boolean
+function RaceSession.consumePillar(self: RaceSession, pillarId: string, reward: number): boolean
 	if self.Finished or self.ClaimedPillars[pillarId] or not isFinitePositive(reward) then
 		return false
 	end
@@ -271,7 +313,12 @@ function RaceSession:consumePillar(pillarId: string, reward: number): boolean
 	return true
 end
 
-function RaceSession:applyGate(gateId: string, statName: string, delta: number): boolean
+function RaceSession.applyGate(
+	self: RaceSession,
+	gateId: string,
+	statName: string,
+	delta: number
+): boolean
 	if self.Finished or self.ConsumedGates[gateId] then
 		return false
 	end
@@ -280,7 +327,11 @@ function RaceSession:applyGate(gateId: string, statName: string, delta: number):
 	return true
 end
 
-function RaceSession:applyObstacle(obstacleId: string, penaltyFraction: number): boolean
+function RaceSession.applyObstacle(
+	self: RaceSession,
+	obstacleId: string,
+	penaltyFraction: number
+): boolean
 	if self.Finished or self.ConsumedObstacles[obstacleId] then
 		return false
 	end
@@ -289,7 +340,7 @@ function RaceSession:applyObstacle(obstacleId: string, penaltyFraction: number):
 	return true
 end
 
-function RaceSession:applyEvolver(multiplier: number): boolean
+function RaceSession.applyEvolver(self: RaceSession, multiplier: number): boolean
 	if self.Finished or self.EvolverUsed then
 		return false
 	end
@@ -298,7 +349,11 @@ function RaceSession:applyEvolver(multiplier: number): boolean
 	return true
 end
 
-function RaceSession:finish(multiplier: number, chestMultiplier: number): (number, number)
+function RaceSession.finish(
+	self: RaceSession,
+	multiplier: number,
+	chestMultiplier: number
+): (number, number)
 	if self.Finished then
 		return 0, 0
 	end
@@ -307,7 +362,7 @@ function RaceSession:finish(multiplier: number, chestMultiplier: number): (numbe
 	return self.RunCash * self.FinishMultiplier * math.max(1, chestMultiplier), self.RunTargets
 end
 
-function RaceSession:snapshot(): RaceSnapshot
+function RaceSession.snapshot(self: RaceSession): RaceSnapshot
 	return {
 		State = if self.Finished then "Finished" else "Running",
 		RunCash = self.RunCash,
