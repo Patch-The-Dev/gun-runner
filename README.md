@@ -93,6 +93,18 @@ rojo build default.project.json --output GunRunner.rbxlx
 
 The [source checks workflow](.github/workflows/ci.yml) verifies the package lock, formatting, lint, all runtime source with Luau analysis, and the game, unit, and multiplayer Rojo builds. Tool versions, Actions, and Roblox type definitions are pinned. The source badge covers those checks.
 
+### Verification approach
+
+This repository uses automatic GitHub source checks and local Roblox Studio execution. Run the Studio suites before publishing changes to gameplay, persistence, networking, or service lifecycle code, and retain the report for the tested source commit.
+
+| Verification | Execution and evidence |
+| --- | --- |
+| Source checks | GitHub Actions runs on `main` pushes and pull requests; results appear in the workflow history. |
+| Runtime suites | Run locally in Studio; [validation.json](docs/validation.json) records the tested commit, completion time, and suite results. |
+| Gameplay demonstration | [Play Gun Runner](https://www.roblox.com/games/18336486336/Gun-Runner) or view the [website portfolio](https://www.patchthedev.com). |
+
+Studio runtime CI is optional. The default verification approach uses the local suites documented below. The recorded Studio results apply to their named source revision; each runtime change needs a fresh run.
+
 ### Runtime tests
 
 [TestEZ specs](tests) cover generation, progression, weapon math, race rewards, bounded movement, receipt confirmation, initialization cleanup, pending-load shutdown, request budgets, atomic gifts, client state, and migrations. TestEZ and the test scripts are excluded from the normal project.
@@ -117,7 +129,7 @@ The isolated fixtures use mock data stores and do not publish or modify a live p
 
 The [recorded local Studio run](docs/validation.json) passed **51 unit checks**, the **server bootstrap**, and **14 multiplayer checks** from a clean source commit. The report identifies that commit and its completion time. The Studio workflow generates a fresh report for each automated run.
 
-The [Studio runtime workflow](.github/workflows/studio.yml) runs the same command after successful source checks for trusted `main` pushes, once a dedicated Windows runner is enabled. Forks and pull requests do not run on that signed-in machine. See [Studio CI setup](docs/STUDIO_CI.md). A skipped Studio job does not count as a passing runtime test.
+The optional [Studio runtime workflow](.github/workflows/studio.yml) can automate the same suites after successful source checks for trusted `main` pushes when a Windows runner is configured and enabled. It is currently disabled. A skipped job records no runtime execution; the local results above remain the recorded Studio evidence. See [verification policy and optional Studio CI setup](docs/STUDIO_CI.md).
 
 The [architecture](docs/architecture.md), [security notes](docs/security.md), [world contract](docs/world-contract.md), and [source layout](docs/source-layout.md) cover the design in more detail. [ProductConfig](src/shared/Config/ProductConfig.luau) contains product and game pass IDs for the live experience.
 
